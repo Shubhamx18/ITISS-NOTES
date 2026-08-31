@@ -9,6 +9,7 @@
 6. Text Processing Utilities (sort, uniq, cut, grep...)
 7. Search, History & Disk Usage (find, du/df, history, tty)
 8. File Permissions (chmod, chown)
+9. Practice Exercise — Users, Groups, Permissions & ACLs
 
 ---
 
@@ -546,6 +547,18 @@ grep -w "cat" file.txt              # Match "cat" as a whole word only (not "cat
 grep -E "cat|dog" file.txt           # Extended regex (same as egrep) — no need to escape |
 ```
 
+### egrep — Extended grep
+
+`egrep` is equivalent to `grep -E`. It uses extended regular expressions, so metacharacters like `|`, `+`, `?`, `{}` work without needing a backslash.
+
+```bash
+egrep "cat|dog" file.txt        # same as: grep -E "cat|dog" file.txt
+egrep -i "error|warning" log.txt  # ignore case
+egrep -c "^[0-9]+" data.txt        # count lines starting with one or more digits
+egrep -v "cat|dog" file.txt          # invert match — lines with neither
+egrep -n "fail|error" /var/log/messages  # show line numbers with matches
+```
+
 ---
 
 ## 11. File Permissions
@@ -647,3 +660,73 @@ chgrp newgroup file               # Change only the group owner
 chown -R newuser dir/               # Recursive — apply to a dir and all its contents
 ```
 `chmod` controls **what** permissions exist; `chown`/`chgrp` control **who** they apply to.
+
+---
+
+## 12. Practice Exercise — Users, Groups, Permissions & ACLs
+
+### 1) Create group, users, and passwords
+
+```bash
+groupadd admin
+useradd -G admin harry
+useradd -G admin natasha
+useradd -s /sbin/nologin sarah
+
+echo -e "harry:redhat@123?\nnatasha:redhat@123?\nsarah:redhat@123?" | chpasswd
+```
+
+### 2) Collaborative directory /common/adm
+
+```bash
+mkdir -p /common/adm
+chgrp admin /common/adm
+chmod 770 /common/adm
+```
+`770` = owner and group get rwx, others get nothing — only `admin` members (and root) can enter/read/write.
+
+### 3) /var/tmp/fstab with per-user permissions (uses ACLs)
+
+```bash
+cp /etc/fstab /var/tmp/fstab
+chown root:root /var/tmp/fstab
+chmod 644 /var/tmp/fstab
+
+setfacl -m u:harry:rw- /var/tmp/fstab
+setfacl -m u:natasha:--- /var/tmp/fstab
+
+getfacl /var/tmp/fstab
+```
+
+### 4) Change owner + group of /tmp/exe
+
+```bash
+chown natasha:editors /tmp/exe
+```
+
+### 5) developers/testers groups + /project/shared (uses setgid + default ACLs)
+
+```bash
+groupadd developers
+groupadd testers
+useradd -G developers Rahul      # or: usermod -aG developers Rahul
+useradd -G testers Nisha         # or: usermod -aG testers Nisha
+
+mkdir -p /project/shared
+chgrp developers /project/shared
+chmod 2770 /project/shared          # setgid bit ensures new files inherit group
+
+setfacl -m g:developers:rwx /project/shared
+setfacl -m g:testers:rwx /project/shared
+setfacl -d -m g:developers:rwx /project/shared   # default ACL: inherited by new files
+setfacl -d -m g:testers:rwx /project/shared
+
+getfacl /project/shared
+```
+
+### 6) schedule.txt permissions
+
+```bash
+chmod 664 schedule.txt
+# owner: rw-, group: rw-, others: r--
+```
