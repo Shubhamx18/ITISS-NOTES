@@ -15,38 +15,21 @@
 | 9 | S3 trigger: bucket and file name | Lambda + S3 |
 | 10 | S3 trigger: file size | Lambda + S3 |
 
+**Run order:** 1, 2, 3, 4, 5, 8, 7, 6, then 9 and 10. Task 6 deletes data, so run it after the other DynamoDB tasks.
+
 ---
 
-## Common Setup
+## Basic Setup (Same for Every Function)
 
-### Create a Lambda function (repeat for each task)
+1. Set the region to **Asia Pacific (Mumbai) ap-south-1** (top right). Use this region for everything.
+2. Lambda → **Create function** → **Author from scratch**
+3. Runtime: **Python 3.12**
+4. Leave the file name `lambda_function.py` and handler `lambda_function.lambda_handler` as default
+5. After creating: **Configuration** → **General configuration** → **Edit** → Timeout `15 sec` → **Save**
+6. Paste the code → click **Deploy** (always deploy before every test)
+7. **Test** tab → paste the test event exactly → **Test**
 
-1. AWS Console → **Lambda** → **Create function**
-2. Choose **Author from scratch**
-3. Function name: `task1-add-numbers` (use a name per task)
-4. Runtime: **Python 3.12**
-5. Click **Create function**
-6. Paste the code in the **Code** tab → **Deploy**
-7. **Test** tab → create a test event with the given JSON → **Test**
-8. View output under **Execution results** or in **CloudWatch Logs**
-
-### DynamoDB table (Tasks 3 to 8)
-
-1. DynamoDB → **Tables** → **Create table**
-2. Table name: `Students`
-3. Partition key: `PRN` (type **String**)
-4. Leave other settings as default → **Create table**
-
-### IAM permissions (Tasks 3 to 8)
-
-1. Lambda function → **Configuration** → **Permissions** → click the **Role name**
-2. **Add permissions** → **Attach policies**
-3. Attach `AmazonDynamoDBFullAccess`
-
-### S3 bucket (Tasks 9 and 10)
-
-1. S3 → **Create bucket** → name it (for example `lambda-trigger-bucket-001`)
-2. Create the bucket in the **same region** as the Lambda function
+Each task below has a **Configuration for this task** box. Do only what that box says.
 
 ---
 
@@ -133,6 +116,29 @@ Course : DevOps
 
 **Function name:** `task3-insert-student`
 
+**Configuration for this task (do this once; Tasks 4 to 8 reuse it):**
+
+| Item | Setting |
+|------|---------|
+| DynamoDB table | Create it now (steps below) |
+| IAM role | Create `lambda-dynamodb-role` now (steps below) |
+
+**A. Create the table**
+1. DynamoDB → **Tables** → **Create table**
+2. Table name: `Students` (exact spelling)
+3. Partition key: `PRN`, type **String**
+4. Leave defaults → **Create table** → wait until status is **Active**
+
+**B. Create the role**
+1. IAM → **Roles** → **Create role**
+2. Trusted entity: **AWS service** → Use case: **Lambda** → **Next**
+3. Attach: `AWSLambdaBasicExecutionRole` and `AmazonDynamoDBFullAccess`
+4. Role name: `lambda-dynamodb-role` → **Create role**
+
+**C. Use the role in the function**
+- When creating the function: **Change default execution role** → **Use an existing role** → `lambda-dynamodb-role`
+- Already created the function with the default role? **Configuration** → **Permissions** → **Edit** → select `lambda-dynamodb-role` → **Save**
+
 **Test event:**
 
 ```json
@@ -172,6 +178,10 @@ def lambda_handler(event, context):
 ## Task 4. Read Student by PRN
 
 **Function name:** `task4-read-student`
+
+**Configuration for this task:**
+- IAM role: **Use an existing role** → `lambda-dynamodb-role`
+- Record `2026001` must exist (run Task 3 first)
 
 **Test event:**
 
@@ -223,6 +233,10 @@ def lambda_handler(event, context):
 ## Task 5. Update Student's Course Name
 
 **Function name:** `task5-update-course`
+
+**Configuration for this task:**
+- IAM role: **Use an existing role** → `lambda-dynamodb-role`
+- Record `2026001` must exist (run Task 3 first)
 
 **Test event:**
 
@@ -284,6 +298,10 @@ def lambda_handler(event, context):
 
 **Function name:** `task6-delete-student`
 
+**Configuration for this task:**
+- IAM role: **Use an existing role** → `lambda-dynamodb-role`
+- Record `2026001` must exist (run after Tasks 4, 5, and 7)
+
 **Test event:**
 
 ```json
@@ -315,6 +333,10 @@ def lambda_handler(event, context):
 ## Task 7. Scan All Student Records
 
 **Function name:** `task7-scan-students`
+
+**Configuration for this task:**
+- IAM role: **Use an existing role** → `lambda-dynamodb-role`
+- At least one record must exist (run Tasks 3 and 8 first)
 
 **Test event:**
 
@@ -366,6 +388,9 @@ def lambda_handler(event, context):
 ## Task 8. Check PRN Exists Before Inserting
 
 **Function name:** `task8-check-before-insert`
+
+**Configuration for this task:**
+- IAM role: **Use an existing role** → `lambda-dynamodb-role`
 
 **Test event:**
 
@@ -421,13 +446,18 @@ def lambda_handler(event, context):
 
 **Function name:** `task9-s3-bucket-file`
 
+**Configuration for this task:**
+- Create S3 bucket `lambda-trigger-bucket-001` in `ap-south-1` (S3 → **Create bucket**)
+- Add the S3 trigger (below)
+
 ### Add the S3 trigger
 
 1. Lambda function → **Add trigger**
 2. Source: **S3**
-3. Bucket: select your bucket
+3. Bucket: `lambda-trigger-bucket-001`
 4. Event type: **All object create events**
-5. Tick the **recursive invocation** acknowledgement → **Add**
+5. Leave Prefix and Suffix empty
+6. Tick the **recursive invocation** acknowledgement → **Add**
 
 **Code:**
 
@@ -448,7 +478,7 @@ def lambda_handler(event, context):
     }
 ```
 
-**Test:** Upload any file to the bucket.
+**Test:** Upload any file (no spaces in the file name) to `lambda-trigger-bucket-001`.
 
 **Verify:** CloudWatch → **Log groups** → `/aws/lambda/task9-s3-bucket-file`
 
@@ -480,7 +510,18 @@ File name : index.html
 
 **Function name:** `task10-s3-file-size`
 
-Add the same **S3 trigger** as Task 9. Use a different bucket, or remove the Task 9 trigger first, because two functions can trigger on the same event type for one bucket only if configured through separate prefixes or an SNS/EventBridge setup.
+**Configuration for this task:**
+- Create a **separate** S3 bucket `lambda-trigger-bucket-002` in `ap-south-1` (a second trigger on the Task 9 bucket causes an overlap error)
+- Add the S3 trigger (below)
+
+### Add the S3 trigger
+
+1. Lambda function → **Add trigger**
+2. Source: **S3**
+3. Bucket: `lambda-trigger-bucket-002` (a different bucket from Task 9)
+4. Event type: **All object create events**
+5. Leave Prefix and Suffix empty
+6. Tick the **recursive invocation** acknowledgement → **Add**
 
 **Code:**
 
@@ -504,29 +545,18 @@ def lambda_handler(event, context):
     }
 ```
 
-**Test:** Upload a file to the bucket.
+**Test:** Upload a file (no spaces in the file name) to `lambda-trigger-bucket-002`.
+
+**Verify:** CloudWatch → **Log groups** → `/aws/lambda/task10-s3-file-size`
 
 **Expected log:**
 
 ```
 File name : index.html
-Bucket : lambda-trigger-bucket-001
+Bucket : lambda-trigger-bucket-002
 File size : 2048 bytes
 File size : 2.0 KB
 ```
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| `AccessDeniedException` on DynamoDB | Attach `AmazonDynamoDBFullAccess` to the Lambda role |
-| `ResourceNotFoundException` | Table name must be exactly `Students` and in the same region |
-| `KeyError` | Test event key names must match the code (`PRN`, `name`, `course`) |
-| S3 trigger not firing | Bucket and Lambda must be in the same region; check the trigger is enabled |
-| No logs for S3 test | Upload a real file; the Lambda **Test** tab uses only the manual event |
-| Task 3 or 8 fails on `PRN` type | PRN must be sent as a string, for example `"2026001"` |
 
 ---
 
@@ -536,4 +566,4 @@ File size : 2.0 KB
 - Delete the DynamoDB table `Students`
 - Empty and delete the S3 bucket(s)
 - Delete the CloudWatch log groups `/aws/lambda/task*`
-- Delete the unused IAM roles created for each function
+- Delete the IAM role `lambda-dynamodb-role` and the default roles created for Tasks 1, 2, 9, and 10
