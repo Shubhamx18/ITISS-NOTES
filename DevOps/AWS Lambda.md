@@ -136,9 +136,13 @@ Course : DevOps
 4. Role name: `lambda-dynamodb-role` → **Create role**
 
 **C. Use the role in the function**
-- When creating the function: **Change default execution role** → **Use an existing role** → `lambda-dynamodb-role`
-- Already created the function with the default role? **Configuration** → **Permissions** → **Edit** → select `lambda-dynamodb-role` → **Save**
-
+- Open AWS Console → Lambda → Functions.
+- Click your function’s name.
+- Open Configuration → **Permissions.**
+- Under Execution role, click **Edit**.
+- Choose Use an existing role.
+- Select **lambda-dynamodb-role** from the dropdown.
+- Click Save.
 **Test event:**
 
 ```json
