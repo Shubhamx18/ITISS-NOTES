@@ -1,85 +1,308 @@
-Assignment 4
+# Assignment 4: Docker Compose
 
-Q1. Docker Compose: Nginx Static Website
-Question
-Create a Docker Compose setup to run an Nginx container that serves a
-custom HTML page.
-Requirements
-1. Create a folder named website
-2. Create a file index.html with content:
+Check Docker Compose is available: `docker compose version`. Use a separate folder for each question.
 
-Hello from Docker Compose
-3. Use Docker Compose to:
-Run an Nginx container
-Map port 8080 to 80
-Mount website folder to /usr/share/nginx/html
-4. Open browser and verify output
+---
 
-Q2. Docker Compose: Python Script Container
-Question
-Run a simple Python script using Docker Compose.
-Requirements
-1. Create a file app.py: print("Hello from Python Container")
-2. Create a Dockerfile to run this script
-3. Use Docker Compose to run this container
-4. Container should execute script and exit
+## Q1. Docker Compose: Nginx Static Website
 
-Assignment 4 1
+**Step 1.** Create the project folder and the `website` folder.
+```bash
+mkdir q1_nginx && cd q1_nginx
+mkdir website
+```
 
-Q3. Docker Compose: MySQL with Volume
-Question
-Create a MySQL container using Docker Compose with persistent storage.
-Requirements
-1. Use MySQL image
-2. Set:
-root password
-database name
-3. Create a named volume
-4. Start container and:
-Enter MySQL using docker exec
-Create table test
-5. Restart container and verify data still exists
+**Step 2.** Create `website/index.html`.
+```html
+<h1>Hello from Docker Compose</h1>
+```
 
-Q4. Docker Compose: One Volume with 3 Nginx
-Containers
-Question
-Create a Docker Compose setup using three Nginx containers that share a
-single volume but display different HTML content.
-Requirements
-1. Create one named volume:
+**Step 3.** Create `docker-compose.yml`.
+```yaml
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./website:/usr/share/nginx/html
+```
 
-shared-data
+**Step 4.** Start the container.
+```bash
+docker compose up -d
+```
 
-2. Create three Nginx containers:
+**Step 5.** Check it is running.
+```bash
+docker compose ps
+```
 
-nginx1
-nginx2
+**Step 6.** Verify in the browser at `http://localhost:8080`, or from the terminal:
+```bash
+curl http://localhost:8080
+```
+Output: `Hello from Docker Compose`
 
-Assignment 4 2
+**Step 7.** Stop and remove.
+```bash
+docker compose down
+```
 
-nginx3
+---
 
-3. Attach the same volume to all containers at:
+## Q2. Docker Compose: Python Script Container
 
-/usr/share/nginx/html
+**Step 1.** Create the project folder.
+```bash
+mkdir q2_python && cd q2_python
+```
 
-4. Each container should display different HTML content:
+**Step 2.** Create `app.py`.
+```python
+print("Hello from Python Container")
+```
 
-nginx1 → Hello from Container 1
-nginx2 → Hello from Container 2
-nginx3 → Hello from Container 3
+**Step 3.** Create `Dockerfile`.
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY app.py .
+CMD ["python", "app.py"]
+```
 
-5. Expose each container on different ports:
+**Step 4.** Create `docker-compose.yml`.
+```yaml
+services:
+  python-app:
+    build: .
+    container_name: python_container
+```
 
-nginx1 → 8081
-nginx2 → 8082
-nginx3 → 8083
+**Step 5.** Build and run.
+```bash
+docker compose up --build
+```
+Output: `Hello from Python Container`. The container runs the script and exits.
 
-6. Ensure all three containers run simultaneously using Docker Compose.
-7. Open browser and verify:
+**Step 6.** Verify the container exited successfully.
+```bash
+docker compose ps -a
+```
+Status shows `Exited (0)`.
 
-http://localhost:8081
-http://localhost:8082
-http://localhost:8083
+**Step 7.** Clean up.
+```bash
+docker compose down
+```
 
-Each port should show different content.
+---
+
+## Q3. Docker Compose: MySQL with Volume
+
+**Step 1.** Create the project folder.
+```bash
+mkdir q3_mysql && cd q3_mysql
+```
+
+**Step 2.** Create `docker-compose.yml`.
+```yaml
+services:
+  mysql:
+    image: mysql:8
+    container_name: mysql_compose
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: testdb
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
+```
+
+**Step 3.** Start the container.
+```bash
+docker compose up -d
+```
+
+**Step 4.** Wait about 20 seconds, then check the logs for `ready for connections`.
+```bash
+docker compose logs mysql
+```
+
+**Step 5.** Enter MySQL using `docker exec`.
+```bash
+docker exec -it mysql_compose mysql -uroot -proot123
+```
+
+**Step 6.** Create the table `test` and insert records.
+```sql
+USE testdb;
+CREATE TABLE test (id INT PRIMARY KEY, name VARCHAR(50));
+INSERT INTO test VALUES (1, 'Asha'), (2, 'Ravi');
+SELECT * FROM test;
+EXIT;
+```
+
+**Step 7.** Restart the container.
+```bash
+docker compose restart
+```
+
+**Step 8.** Wait about 10 seconds and verify the data still exists.
+```bash
+docker exec -it mysql_compose mysql -uroot -proot123 -e "SELECT * FROM testdb.test;"
+```
+Both records are present.
+
+**Step 9 (stronger proof).** Remove the container and recreate it. The volume is kept.
+```bash
+docker compose down
+docker compose up -d
+```
+Wait about 20 seconds and run the command from Step 8 again. The data is still there.
+
+**Step 10.** Clean up. Use `-v` only when you want to delete the volume as well.
+```bash
+docker compose down -v
+```
+
+---
+
+## Q4. Docker Compose: One Volume with 3 Nginx Containers
+
+All three containers mount the same volume at `/usr/share/nginx/html`, so they see the same files. To show different content, the volume holds three pages (`page1.html`, `page2.html`, `page3.html`) and each container is configured to serve a different one.
+
+**Step 1.** Create the project folder structure.
+```bash
+mkdir q4_nginx && cd q4_nginx
+mkdir conf
+```
+
+**Step 2.** Create `conf/nginx1.conf`.
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index page1.html;
+}
+```
+
+**Step 3.** Create `conf/nginx2.conf`.
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index page2.html;
+}
+```
+
+**Step 4.** Create `conf/nginx3.conf`.
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index page3.html;
+}
+```
+
+**Step 5.** Create `docker-compose.yml`.
+```yaml
+services:
+  init:
+    image: alpine
+    container_name: init_content
+    volumes:
+      - shared-data:/data
+    command: >
+      sh -c "echo '<h1>Hello from Container 1</h1>' > /data/page1.html &&
+             echo '<h1>Hello from Container 2</h1>' > /data/page2.html &&
+             echo '<h1>Hello from Container 3</h1>' > /data/page3.html"
+
+  nginx1:
+    image: nginx:alpine
+    container_name: nginx1
+    ports:
+      - "8081:80"
+    volumes:
+      - shared-data:/usr/share/nginx/html
+      - ./conf/nginx1.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  nginx2:
+    image: nginx:alpine
+    container_name: nginx2
+    ports:
+      - "8082:80"
+    volumes:
+      - shared-data:/usr/share/nginx/html
+      - ./conf/nginx2.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  nginx3:
+    image: nginx:alpine
+    container_name: nginx3
+    ports:
+      - "8083:80"
+    volumes:
+      - shared-data:/usr/share/nginx/html
+      - ./conf/nginx3.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+volumes:
+  shared-data:
+    name: shared-data
+```
+The `init` container writes the three pages into the volume once and exits. The three Nginx containers then start and keep running.
+
+**Step 6.** Start everything.
+```bash
+docker compose up -d
+```
+
+**Step 7.** Confirm nginx1, nginx2 and nginx3 are all running.
+```bash
+docker compose ps
+```
+
+**Step 8.** Verify in the browser:
+- `http://localhost:8081` shows `Hello from Container 1`
+- `http://localhost:8082` shows `Hello from Container 2`
+- `http://localhost:8083` shows `Hello from Container 3`
+
+Or from the terminal:
+```bash
+curl http://localhost:8081
+curl http://localhost:8082
+curl http://localhost:8083
+```
+
+**Step 9.** Verify all three share the same volume.
+```bash
+docker volume ls
+docker exec nginx1 ls /usr/share/nginx/html
+docker exec nginx3 ls /usr/share/nginx/html
+```
+Both show `page1.html`, `page2.html`, `page3.html`.
+
+**Step 10.** Clean up.
+```bash
+docker compose down -v
+```
+
+---
+
+## Screenshots for Submission
+
+- Q1: browser showing `localhost:8080` and `docker compose ps`
+- Q2: `docker compose up --build` output and `docker compose ps -a`
+- Q3: `SELECT` output before and after `docker compose restart`
+- Q4: `docker compose ps` and the three browser tabs (8081, 8082, 8083)
