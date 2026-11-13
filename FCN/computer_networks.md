@@ -68,7 +68,7 @@
 
 * **Core Terms:** Access Point (**AP**) and **SSID** *(wireless network name)*.
 * **Operating Modes:** **Infrastructure Mode** *(clients connect via AP)* vs. **Ad Hoc Mode** *(direct device-to-device without AP)*.
- 
+
 | Standard | Frequency Band | Max Speed / Wi-Fi Gen |
 | :--- | :--- | :--- |
 | **802.11b** | 2.4 GHz | 11 Mbps |
@@ -105,13 +105,13 @@
 
 ## 3. IP, TCP, and UDP
 
-* **IP (Internet Protocol):** Connectionless, best-effort packet delivery using logical addresses. `TCP` or `UDP` handles reliability.
+* **IP (Internet Protocol):** Connectionless, best-effort packet delivery using logical addresses. IP itself gives no reliability — **TCP** adds it; **UDP** does not.
 
 | Feature | TCP | UDP |
 | :--- | :--- | :--- |
 | **Connection** | Connection-oriented, reliable | Connectionless, fast, no delivery guarantee |
 | **Handshake** | 3-Way Handshake: `SYN` $\rightarrow$ `SYN-ACK` $\rightarrow$ `ACK` | None |
-| **Header Size** | **`20 bytes`** | **`8 bytes`** |
+| **Header Size** | **`20 bytes`** (minimum) | **`8 bytes`** |
 | **Use Cases** | Web (`HTTP/S`), Email (`SMTP/POP3`), File Transfer (`FTP`), `SSH` | `DNS`, `DHCP`, `TFTP`, `SNMP`, Voice/Video streaming |
 
 ### Must-Know Port Numbers
@@ -132,7 +132,7 @@
 * **Address & Header:** **`32 bits`**. Header size = `20 bytes` min, `60 bytes` max. **TTL** decrements by `1` at every router to prevent infinite loops.
 * **IP Protocol Numbers:** `ICMP = 1` | `TCP = 6` | `UDP = 17` | `GRE = 47` | `EIGRP = 88` | `OSPF = 89`
 * **IPv4 Address Classes:**
-  * **Class A:** `1 – 126` (`/8`)
+  * **Class A:** `1 – 126` (`/8`) *(`0` and `127` are reserved)*
   * **Class B:** `128 – 191` (`/16`)
   * **Class C:** `192 – 223` (`/24`)
   * **Class D:** `224 – 239` *(Multicast)*
@@ -342,6 +342,7 @@ Synchronizes VLAN databases across trunked switches *(Requires identical **VTP D
 
 * **Standard ACL (`1 – 99`):** Filters by **Source IP only**; place **close to the destination**.
 * **Extended ACL (`100 – 199`):** Filters by **Source IP, Destination IP, Protocol, and Port**; place **close to the source**.
+* *(Expanded ranges: Standard `1300 – 1999`, Extended `2000 – 2699`. Named ACLs also exist.)*
 * **Processing Logic:** Evaluated top-to-bottom; **first match wins**; every ACL ends with an implicit **`deny any`**.
 * **Wildcard Mask:** Inverse of subnet mask (`0` = must match, `1` = ignore).
   * `/24` $\rightarrow$ `0.0.0.255` | Specific Host $\rightarrow$ `0.0.0.0` | Any $\rightarrow$ `255.255.255.255`
@@ -354,126 +355,4 @@ Synchronizes VLAN databases across trunked switches *(Requires identical **VTP D
   * **Violation Modes:** `Protect` *(drops silently)*, `Restrict` *(drops + logs)*, `Shutdown` *(default — puts port in `err-disabled`)*.
 * **DHCP Snooping & DAI:**
   * **DHCP Snooping:** Ports facing legitimate DHCP servers are **Trusted**; user ports default to **Untrusted** (blocks rogue `DHCP Offer`/`Ack`). Builds the **DHCP Snooping Binding Table**.
-  * **Dynamic ARP Inspection (DAI):** Uses the **DHCP Snooping Binding Table** to validate ARP packets on untrusted ports and drop forged ARP replies.
-* **IEEE 802.1X:** Port-based network access control authenticating users/devices *before* granting LAN access (`EAPOL` between client/switch; `RADIUS` between switch/AAA server).
-
-| Layer 2 Attack | Mitigation |
-| :--- | :--- |
-| **MAC Flooding** *(CAM table overflow)* | Port Security |
-| **DHCP Spoofing / Starvation** | DHCP Snooping |
-| **ARP Spoofing / Poisoning** | Dynamic ARP Inspection (**DAI**) |
-| **VLAN Hopping** *(Switch spoofing / Double tagging)* | Disable DTP (`switchport nonegotiate`), change native VLAN from VLAN 1 |
-| **STP Root Hijack / Manipulation** | BPDU Guard & Root Guard |
-
-* **Device Hardening:** Configure `enable secret`, `service password-encryption`, `SSH` (disable Telnet), `exec-timeout`, and `shutdown` unused switch ports.
-
-### AAA (Authentication, Authorization, Accounting)
-
-* **Authentication:** Who are you? | **Authorization:** What are you allowed to do? | **Accounting:** What did you do?
-
-| Feature | TACACS+ | RADIUS |
-| :--- | :--- | :--- |
-| **Standard** | Cisco Proprietary | Open Standard (RFC) |
-| **Transport / Port** | **TCP `49`** | **UDP `1812 / 1813`** |
-| **Encryption** | Encrypts **entire packet** | Encrypts **password only** |
-| **AAA Architecture** | Separates Auth, Authz, and Acct | Combines Authentication & Authorization |
-
----
-
-## 10. NAT and IPv6
-
-### NAT (Network Address Translation)
-
-* **Static NAT:** Permanent 1-to-1 private-to-public IP mapping.
-* **Dynamic NAT:** Maps private IPs dynamically from a pool of public IPs.
-* **PAT (NAT Overload):** Maps **many private IPs to 1 public IP** using unique source port numbers *(most widely used)*.
-* **NAT Terminology:** *Inside Local*, *Inside Global*, *Outside Local*, *Outside Global*.
-* **Verify Command:** `show ip nat translations`
-
-### IPv6 Essentials
-
-* **Address & Header:** **`128 bits`** (8 groups of 4 hex digits). Fixed header = **`40 bytes`**.
-* **Major Changes from IPv4:** **No Broadcast** *(uses Multicast & Anycast)*; **Hop Limit** replaces TTL; **no header checksum**.
-* **Shortening Rules:** Omit leading zeros in any group; replace consecutive all-zero groups with `::` (**used only once** per address).
-* **IPv6 Address Prefixes:**
-  * **Global Unicast:** `2000::/3`
-  * **Link-Local:** `FE80::/10`
-  * **Unique Local:** `FC00::/7`
-  * **Multicast:** `FF00::/8`
-  * **Loopback:** `::1`
-* **Neighbor Discovery & Auto-Config:**
-  * **NDP** *(Neighbor Discovery Protocol)* replaces ARP.
-  * **SLAAC:** Stateless Address Autoconfiguration.
-  * **EUI-64:** Inserts `FFFE` into the middle of the 48-bit MAC address and flips the **7th bit** (U/L bit).
-* **IPv4 $\rightarrow$ IPv6 Transition Mechanisms:** Dual Stack, Tunneling, Translation (`NAT64`).
-* **Cisco Commands:** `ipv6 unicast-routing`, `ipv6 address 2001:db8::1/64`
-
----
-
-## 11. WAN Technologies
-
-* **PPP (Point-to-Point Protocol):** Layer 2 WAN encapsulation.
-  * **LCP** *(Link Control Protocol)*: Establishes, configures, and authenticates the link.
-  * **NCP** *(Network Control Protocol)*: Negotiates Layer 3 protocols (IPv4, IPv6).
-  * *(Note: Cisco default serial encapsulation is **HDLC**).*
-* **PPP Authentication:**
-  * **PAP:** 2-way handshake; sends credentials in **plain text**.
-  * **CHAP:** 3-way handshake; uses **MD5 challenge-response** and periodic re-authentication *(recommended)*.
-* **PPP Extensions:**
-  * **MLPPP (Multilink PPP):** Bundles multiple physical serial links into one logical high-bandwidth link.
-  * **PPPoE (PPP over Ethernet):** Used over DSL; uses a `Dialer` interface; adds `8-byte` overhead reducing Ethernet MTU to **`1492 bytes`**.
-* **GRE (Generic Routing Encapsulation):** Tunneling protocol (**IP protocol `47`**) that encapsulates multicast and routing updates over IP; adds `24-byte` overhead; **unencrypted** *(pair with IPsec for security)*. Configured with `tunnel source` and `tunnel destination`.
-* **eBGP Single-Homed Branch Config:** `router bgp <AS>` $\rightarrow$ `neighbor <IP> remote-as <AS>` $\rightarrow$ `network <net> mask <mask>`
-* **Leased Lines & Clocking:** `T1 = 1.544 Mbps` | `E1 = 2.048 Mbps` | `clock rate` is configured on the **DCE** side.
-
----
-
-## 12. SDN, Virtual Networking & Mininet
-
-### Software-Defined Networking (SDN)
-
-* **Architecture:** Decouples the **Control Plane** *(network brain, moved to a centralized SDN controller)* from the **Data Plane** *(switches forward packets based on flow tables)*.
-* **Interfaces (APIs):**
-  * **Northbound API:** `REST` *(SDN Applications $\leftrightarrow$ Controller)*
-  * **Southbound API:** `OpenFlow` *(Controller $\leftrightarrow$ Switches)*
-* **Packet Processing Flow:**
-  `Unknown Packet` $\rightarrow$ Switch sends **`Packet-In`** to Controller $\rightarrow$ Controller pushes forwarding entry via **`Flow-Mod`**
-* **Syllabus Core Pillars (Scalability, Reliability, Consistency):**
-  * **Scalability:** Automates multi-tenancy in Data Centres and traffic engineering in ISPs; uses **clustered controllers** (e.g., ONOS, OpenDaylight) to eliminate single-controller `Packet-In` bottlenecks.
-  * **Reliability (QoS & Availability):** Global topology view allows dynamic real-time **QoS** path optimization. On controller failure, switches operate in **fail-secure mode** *(drop new flows)* or **fail-standalone mode** *(revert to traditional L2/L3 switching)*.
-  * **Consistency:** Centralized policy enforcement prevents CLI configuration drift and ACL conflicts, though a compromised controller can propagate **Access Control Violations** across the entire network.
-  * **Opportunities & Challenges:** *Opportunities:* Vendor neutrality (white-box hardware), rapid REST automation, lower OpEx. *Challenges:* Controller is a **Single Point of Failure (SPOF)** and high-value attack target, southbound latency, and legacy device integration.
-
-### Virtual Networking & Mininet
-
-* **Virtual Switch:** Software switch inside a hypervisor connecting VMs *(e.g., Open vSwitch, VMware vSwitch, Hyper-V)*; supports VLANs and trunking.
-* **Key SDN / NFV Use Cases:**
-  * **NAC (Network Access Control):** Verifies user identity and device security posture before allowing network access.
-  * **vCE (Virtual Customer Edge):** Virtualizes the customer-edge router as software (**NFV**).
-  * **Data Centre Optimization:** Seamless live VM migration, multi-tenancy, and automated load balancing.
-* **Mininet:**
-  * Network **emulator** *(runs real Linux kernel and network stacks)*; requires `sudo`.
-  * `sudo mn --topo linear,4` $\rightarrow$ Creates `4` switches and `4` hosts in a line.
-  * `sudo mn --topo tree,depth=2,fanout=2` $\rightarrow$ Creates `3` switches and `4` hosts.
-  * `pingall` $\rightarrow$ Tests reachability across all hosts.
-  * `sudo mn -c` $\rightarrow$ Cleans up lingering Mininet processes/interfaces.
-
----
-
-## 13. Common MCQ Traps
-
-> [ !WARNING ]
-> **Watch out for these classic exam distractors:**
-
-* **AD vs. Metric:** **AD** chooses between *different* routing protocols; **Metric** chooses the best path *within one* protocol.
-* **OSPF vs. BGP `network` Command:** OSPF's `network` command selects interfaces to run OSPF on; BGP's `network` command advertises an **exact-match route** already in the routing table.
-* **Standard vs. Extended ACL:** Standard checks **Source IP only**; Extended checks Source IP, Destination IP, Protocol, and Ports.
-* **DAI Prerequisite:** Dynamic ARP Inspection requires **DHCP Snooping** to be enabled first.
-* **802.1X AAA Protocol:** Uses **RADIUS** *(not TACACS+)* between the switch and AAA server.
-* **`Cat5e` Speed:** Supports **`1 Gbps`** *(not `100 Mbps`)*.
-* **Subnetting `15` Hosts:** Requires a **`/27`** mask *(a `/28` provides only `14` usable host IPs)*.
-* **TACACS+ vs. RADIUS Transport:** `TACACS+` uses **TCP (`49`)**; `RADIUS` uses **UDP (`1812/1813`)**.
-* **GRE Security:** `GRE` provides **no encryption** *(must combine with IPsec for encryption)*.
-* **SDN Fail Modes:** **Fail-secure** drops unknown packets when the controller disconnects; **fail-standalone** falls back to standard L2/L3 switching.
-* **Mininet Type:** Mininet is an **emulator**, *not* a simulator.
-* **IEEE 802.1 Standards:** `802.1D` = STP | `802.1w` = RSTP | `802.1s` = MSTP | `802.1Q` = VLAN Tagging | `802.1X` = Port-Based NAC.
+  *
