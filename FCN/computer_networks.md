@@ -68,7 +68,7 @@
 
 * **Core Terms:** Access Point (**AP**) and **SSID** *(wireless network name)*.
 * **Operating Modes:** **Infrastructure Mode** *(clients connect via AP)* vs. **Ad Hoc Mode** *(direct device-to-device without AP)*.
-* 
+ 
 | Standard | Frequency Band | Max Speed / Wi-Fi Gen |
 | :--- | :--- | :--- |
 | **802.11b** | 2.4 GHz | 11 Mbps |
