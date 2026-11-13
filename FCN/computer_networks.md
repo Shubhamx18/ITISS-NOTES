@@ -1,4 +1,4 @@
-# 🌐 FCN — Complete Exam Notes (v2) for the 40-Mark MCQ Paper
+# 🌐 FCN — Complete Exam Notes 
 
 **How to use this:** Read each Part once, then re-read only the 🔑 *Must-remember* boxes and the tables. Finish with Part 14 (formulas + traps) and the separate practice MCQ file. Numericals are the easiest marks — memorise the formulas.
 
