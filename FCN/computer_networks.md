@@ -462,7 +462,7 @@ Synchronizes VLAN databases across trunked switches *(Requires identical **VTP D
 
 ## 13. Common MCQ Traps
 
-> [!WARNING]
+> [ !WARNING ]
 > **Watch out for these classic exam distractors:**
 
 * **AD vs. Metric:** **AD** chooses between *different* routing protocols; **Metric** chooses the best path *within one* protocol.
