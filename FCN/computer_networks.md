@@ -68,15 +68,15 @@
 
 * **Core Terms:** Access Point (**AP**) and **SSID** *(wireless network name)*.
 * **Operating Modes:** **Infrastructure Mode** *(clients connect via AP)* vs. **Ad Hoc Mode** *(direct device-to-device without AP)*.
-
+* 
 | Standard | Frequency Band | Max Speed / Wi-Fi Gen |
 | :--- | :--- | :--- |
-| **802.11b** | $2.4\text{ GHz}$ | $11\text{ Mbps}$ |
-| **802.11a** | $5\text{ GHz}$ | $54\text{ Mbps}$ |
-| **802.11g** | $2.4\text{ GHz}$ | $54\text{ Mbps}$ |
-| **802.11n** | $2.4\text{ & }5\text{ GHz}$ | Up to $600\text{ Mbps}$ (MIMO / Wi-Fi 4) |
-| **802.11ac** | $5\text{ GHz}$ | Wi-Fi 5 |
-| **802.11ax** | $2.4\text{ & }5\text{ GHz}$ | Wi-Fi 6 |
+| **802.11b** | 2.4 GHz | 11 Mbps |
+| **802.11a** | 5 GHz | 54 Mbps |
+| **802.11g** | 2.4 GHz | 54 Mbps |
+| **802.11n** | 2.4 GHz and 5 GHz | Up to 600 Mbps (MIMO / Wi-Fi 4) |
+| **802.11ac** | 5 GHz | Wi-Fi 5 |
+| **802.11ax** | 2.4 GHz and 5 GHz | Wi-Fi 6 |
 
 * **Non-Overlapping Channels ($2.4\text{ GHz}$):** **`1`**, **`6`**, **`11`**
 * **Other IEEE Wireless Standards:** Bluetooth = **`802.15`** | WiMAX = **`802.16`**
