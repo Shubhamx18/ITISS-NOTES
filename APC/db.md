@@ -1,7 +1,3 @@
-# MySQL Visual Guide
-
-> Read it once for the map, a second time for the details. Each part ends with a short recap.
-
 ---
 
 ## 1. The Big Picture: How Data Is Organised
