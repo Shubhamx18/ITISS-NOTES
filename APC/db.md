@@ -1,4 +1,3 @@
----
 
 ## 1. The Big Picture: How Data Is Organised
 
