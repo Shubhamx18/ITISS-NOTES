@@ -1,501 +1,665 @@
-# MySQL Complete Visual & Conceptual Mastery Guide
+# MySQL Visual Guide
 
-A crystal-clear, intuition-first handbook covering the core pillars of MySQL: **Database Architecture & Security**, **Querying, Filtering & Joins**, and **Aggregations, Grouping & Subqueries**.
-
----
-
-## 1. The Mental Model: How MySQL Thinks
-
-Before memorizing commands, visualize how MySQL stores data and how it processes your queries.
-
-### The Filing Cabinet Architecture
-
-```text
-MySQL Server (The RDBMS Software — Controlled via SQL)
- └── Database / Schema: `college_db`  <-- The Filing Cabinet (CREATE / USE / DROP)
-      ├── Table: `departments`       <-- Parent Register (Identified by PRIMARY KEY)
-      └── Table: `students`          <-- Child Register (Linked via FOREIGN KEY)
-           ├── Columns (Attributes)  <-- Vertical Headers: id, name, age, city
-           └── Rows (Tuples/Records) <-- Horizontal Entries: (1, 'Asha', 21, 'Pune')
-```
-
-### Core Terminology Made Simple
-
-* **SQL vs. MySQL:** **SQL** is the *language* you speak; **MySQL** is the *database engine* that understands SQL, stores data on disk, and enforces rules.
-* **DBMS vs. RDBMS:** A **DBMS** manages raw data files; an **RDBMS** organizes data into structured 2D tables linked together by keys. MySQL is an RDBMS.
-* **Database vs. Schema:** In **MySQL**, `DATABASE` and `SCHEMA` mean the **exact same thing** (`CREATE SCHEMA x;` is identical to `CREATE DATABASE x;`). *(In systems like PostgreSQL or SQL Server, one database contains multiple schemas.)*
-* **Relational Math Terms:**
-  * **Table** = **Relation**
-  * **Row** = **Record** or **Tuple** (one complete horizontal entry)
-  * **Column** = **Field** or **Attribute** (one vertical property)
-  * **Degree (Arity)** = Number of **Columns** (**D**egree = **C**olumns)
-  * **Cardinality** = Number of **Rows** (**C**ardinality = **R**ows)
-
-### How MySQL Actually Executes a Query (The Secret Behind Every SQL Rule)
-
-You **write** a query starting with `SELECT`, but MySQL **executes** it in a completely different internal order. Memorizing this 8-step pipeline makes almost every SQL error immediately obvious:
-
-```text
-[1] FROM & JOIN   ──▶ Gather tables and combine matching rows
-[2] WHERE         ──▶ Throw away individual rows that fail conditions (Aliases don't exist yet!)
-[3] GROUP BY      ──▶ Collapse surviving rows into summary buckets
-[4] HAVING        ──▶ Throw away entire buckets that fail aggregate conditions
-[5] SELECT        ──▶ Calculate columns, run SUM/COUNT/AVG, and assign column aliases
-[6] DISTINCT      ──▶ Remove duplicate output rows
-[7] ORDER BY      ──▶ Sort the final result (Aliases ARE available here!)
-[8] LIMIT         ──▶ Slice off the top N rows to return
-```
-
-> **Why does `WHERE total > 100` fail when `total` is an alias in `SELECT`?**
-> Because Step 2 (`WHERE`) runs *before* Step 5 (`SELECT`) creates the alias! Meanwhile, `ORDER BY total` works because Step 7 runs *after* Step 5.
-
-### SQL Command Families & Undo Rules
-
-| Family | Full Name | Commands | Auto-Saves Immediately? | Can `ROLLBACK` (Undo)? |
-| :--- | :--- | :--- | :---: | :---: |
-| **DDL** | Data Definition Language | `CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `RENAME` | **Yes** | **No** |
-| **DML** | Data Manipulation Language | `INSERT`, `UPDATE`, `DELETE` | No (inside a transaction) | **Yes** |
-| **DQL** | Data Query Language | `SELECT` | N/A (Read-only) | N/A |
-| **DCL** | Data Control Language | `GRANT`, `REVOKE` | **Yes** | **No** |
+> Read it once for the map, a second time for the details. Each part ends with a short recap.
 
 ---
 
-## 2. Pillar I: Databases, Tables & User Security
+## 1. The Big Picture: How Data Is Organised
 
-### Creating, Renaming & Navigating Databases
-
-A brand-new database is a completely empty container (**0 tables**) until you build tables inside it.
-
-```sql
--- 1. Standard creation (Throws ERROR 1007 if database already exists)
-CREATE DATABASE college_db;
-
--- 2. Safe creation (Skips creation & emits a warning if it exists; NEVER overwrites data)
-CREATE DATABASE IF NOT EXISTS college_db;
-
--- 3. Production standard (Supports all Unicode/emojis + case-insensitive sorting)
-CREATE DATABASE IF NOT EXISTS college_db
-CHARACTER SET utf8mb4
-COLLATE utf8mb4_unicode_ci;
-
--- 4. Navigation & Inspection
-SHOW DATABASES;       -- Lists every database your account is allowed to see
-USE college_db;       -- Steps inside college_db to make it your active workspace
-SELECT DATABASE();    -- Prints active database name (returns NULL if you haven't run USE yet)
+```
+ MySQL SERVER
+  |
+  +-- DATABASE (school_db)          <- a container for related tables
+  |     |
+  |     +-- TABLE (students)        <- one subject = one table
+  |     |     |
+  |     |     +-- COLUMN (name)     <- an attribute, has a data type
+  |     |     +-- ROW (1, 'Asha')   <- one record
+  |     |
+  |     +-- TABLE (courses)
+  |
+  +-- DATABASE (shop_db)
 ```
 
-> **Exam Note on Renaming a Database:** MySQL has **no** `RENAME DATABASE` command. To rename a database, you must create a new database, move each table using `RENAME TABLE old_db.tbl TO new_db.tbl;`, and drop the old database.
+| Term | Meaning | Real-life analogy |
+|------|---------|-------------------|
+| **Database** | Named container of tables | A filing cabinet |
+| **Schema** | The blueprint: tables, columns, types, keys. In MySQL, `SCHEMA` and `DATABASE` mean the same thing | The cabinet's layout plan |
+| **Table** | Rows and columns about one entity | A folder in the cabinet |
+| **Column (field)** | One attribute with a fixed data type | A heading in a form |
+| **Row (record)** | One complete entry | One filled-in form |
+| **Primary Key** | Column that uniquely identifies each row | Roll number |
+| **Foreign Key** | Column that points to another table's primary key | A reference slip |
 
-### Naming Rules vs. Best Practices
+---
 
-#### Hard Rules (Breaking these causes errors or cross-platform crashes)
-1. **64-Character Limit:** Database, table, and column names cannot exceed **64 characters**.
-2. **Reserved Keywords:** Naming a table `order`, `select`, or `user` causes a syntax error unless wrapped in **backticks** (`` `order` ``).
-3. **Linux vs. Windows Case Sensitivity:**
-   * MySQL stores databases as OS folders and tables as files.
-   * **Linux** is case-sensitive (`college_db` $\neq$ `College_DB`).
-   * **Windows / macOS** are case-insensitive (`college_db` $=$ `College_DB`).
-   * **Golden Rule:** Always use **lowercase `snake_case`** everywhere so your SQL never breaks when moved to a Linux server.
-4. **Backticks vs. Single Quotes:**
-   * **Single quotes (`'Asha'`)** $\rightarrow$ Wrap **text and date values** (data).
-   * **Backticks (`` `students` ``)** $\rightarrow$ Wrap **identifiers** (database, table, or column names).
+# PART A: FOUNDATIONS
 
-#### Clean Architecture Habits
-* Name databases after their domain (`college_db`, `inventory_db`), never vague names (`db1`, `test`).
-* Group related tables inside one database (`students`, `courses`, `departments` inside `college_db`).
-* Separate environments cleanly (`college_dev`, `college_prod`).
+## 2. Creating and Dropping Databases
 
-### User Creation & Permission Scoping
-
-A MySQL user is a **server login account**, completely separate from rows inside a `students` or `users` table. MySQL identifies every account by **both username and connection host**: `'username'@'host'`.
-
-* `'lab_student'@'localhost'` $\rightarrow$ Can connect **only** from the same computer running MySQL.
-* `'lab_student'@'%'` $\rightarrow$ Can connect from **any remote IP address** (`%` = wildcard).
-* MySQL treats `'lab_student'@'localhost'` and `'lab_student'@'%'` as **two completely separate accounts** with their own passwords and permissions.
+### Syntax
 
 ```sql
--- 1. Create a local user (starts with ZERO database permissions — only login capability)
-CREATE USER 'lab_student'@'localhost' IDENTIFIED BY 'StrongPass@123';
+CREATE DATABASE school_db;                      -- create
+CREATE DATABASE IF NOT EXISTS school_db;        -- create only if missing (safe)
+SHOW DATABASES;                                 -- list all
+USE school_db;                                  -- select it for work
 
--- 2. Grant full control strictly over all tables (*) inside college_db
-GRANT ALL PRIVILEGES ON college_db.* TO 'lab_student'@'localhost';
-
--- 3. Inspect exact permissions assigned to the user
-SHOW GRANTS FOR 'lab_student'@'localhost';
-
--- 4. Revoke specific permissions or drop user when finished
-REVOKE INSERT, UPDATE ON college_db.* FROM 'lab_student'@'localhost';
-DROP USER 'lab_student'@'localhost';
+DROP DATABASE school_db;                        -- delete (PERMANENT)
+DROP DATABASE IF EXISTS school_db;              -- delete only if it exists
 ```
 
-> **Privilege Scope Quick Guide:**
-> * `*.*` $\rightarrow$ Every table in every database on the entire server (Admin level)
-> * `college_db.*` $\rightarrow$ Every table inside `college_db` only
-> * `college_db.students` $\rightarrow$ Only the `students` table inside `college_db`
+> **Warning:** `DROP` has no undo and no recycle bin. Everything inside is gone.
 
-### Essential Data Types & Constraints
+### Best practices for naming and organising
 
-| Category | Common Types | Purpose & Exam Detail |
-| :--- | :--- | :--- |
-| **Whole Numbers** | `INT`, `TINYINT`, `BIGINT` | `INT` = 4 bytes. Add `UNSIGNED` to block negative values (`INT UNSIGNED`). |
-| **Decimals** | `DECIMAL(10,2)`, `DOUBLE` | Use `DECIMAL(p,s)` for exact money values ($p$ total digits, $s$ after decimal). |
-| **Text** | `CHAR(n)`, `VARCHAR(n)`, `TEXT` | `CHAR(n)` is fixed-length (padded with spaces); `VARCHAR(n)` is variable-length. |
-| **Date & Time** | `DATE`, `DATETIME`, `TIMESTAMP` | `DATE` = `'2026-10-08'`; `DATETIME` = `'2026-10-08 14:30:00'`. |
-| **Boolean** | `BOOLEAN` | Stored internally in MySQL as `TINYINT(1)` (`1` = true, `0` = false). |
+| Do | Avoid |
+|----|-------|
+| `lowercase_with_underscores` (`school_db`) | Spaces or special characters (`My DB!`) |
+| Meaningful names (`hr_payroll`) | Vague names (`test1`, `db2`) |
+| Plural or consistent table names (`students`) | Mixing styles (`Student`, `courses_TBL`) |
+| One database per application or project | Dumping unrelated tables in one database |
+| Singular, clear column names (`first_name`) | Reserved words as names (`order`, `group`) |
+| `IF NOT EXISTS` / `IF EXISTS` in scripts | Running bare `DROP` on shared servers |
 
-| Constraint | Rule Enforced | Key Detail |
-| :--- | :--- | :--- |
-| **`PRIMARY KEY`** | Uniquely identifies every row | Automatically enforces **`UNIQUE` + `NOT NULL`**. Only **1** per table. |
-| **`AUTO_INCREMENT`** | Automatically generates sequential IDs | Must be indexed (usually paired with `PRIMARY KEY`). |
-| **`NOT NULL`** | Rejects missing (`NULL`) values | Must supply a value on `INSERT` unless `DEFAULT` is defined. |
-| **`UNIQUE`** | Prevents duplicate values in a column | Allows multiple `NULL` values in MySQL. |
-| **`DEFAULT`** | Supplies a fallback value | Used automatically when no value is provided during `INSERT`. |
-| **`CHECK`** | Enforces a logical condition (MySQL 8.0+) | Example: `CHECK (age >= 18)`. |
-| **`FOREIGN KEY`** | Links child column to parent `PRIMARY KEY` | Prevents orphan rows; parent row must exist before inserting child row. |
+**Memory hook:** *lowercase, underscore, meaningful, consistent.*
 
-#### Foreign Key `ON DELETE` / `ON UPDATE` Actions
-When a parent row is deleted or updated:
-* **`RESTRICT` / `NO ACTION` (Default):** Blocks the deletion/update if matching child rows exist.
-* **`CASCADE`:** Automatically deletes or updates matching child rows.
-* **`SET NULL`:** Sets the foreign key column in child rows to `NULL`.
+---
 
-### Building Tables & Inserting Data
+## 3. Tables and Data Types
+
+### Create a table
 
 ```sql
-USE college_db;
-
--- Parent table must be created BEFORE any child table that references it
-CREATE TABLE departments (
-    dept_id INT PRIMARY KEY,
-    dept_name VARCHAR(50) NOT NULL UNIQUE
-);
-
 CREATE TABLE students (
-    id INT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    age INT CHECK (age >= 16),
-    city VARCHAR(30) DEFAULT 'Pune',
-    dept_id INT,
-    FOREIGN KEY (dept_id) REFERENCES departments(dept_id) ON DELETE SET NULL
+    student_id  INT            PRIMARY KEY AUTO_INCREMENT,
+    first_name  VARCHAR(50)    NOT NULL,
+    email       VARCHAR(100)   UNIQUE,
+    age         INT            CHECK (age >= 16),
+    fees        DECIMAL(8,2)   DEFAULT 0.00,
+    joined_on   DATE
+);
+```
+
+### Common data types
+
+| Group | Types | Use for |
+|-------|-------|---------|
+| **Whole numbers** | `INT`, `BIGINT`, `SMALLINT`, `TINYINT` | IDs, counts, age |
+| **Decimals** | `DECIMAL(p,s)`, `FLOAT`, `DOUBLE` | Money (use `DECIMAL`), measurements |
+| **Text** | `CHAR(n)`, `VARCHAR(n)`, `TEXT` | Names, emails, long notes |
+| **Date and time** | `DATE`, `TIME`, `DATETIME`, `TIMESTAMP` | Birthdays, logs |
+| **Other** | `BOOLEAN`, `ENUM(...)`, `JSON` | Flags, fixed choices, documents |
+
+### Common constraints
+
+| Constraint | Rule it enforces |
+|------------|------------------|
+| `PRIMARY KEY` | Unique and not null; identifies the row |
+| `NOT NULL` | Value is required |
+| `UNIQUE` | No duplicates allowed |
+| `DEFAULT x` | Use x if no value is given |
+| `CHECK (cond)` | Value must satisfy the condition |
+| `FOREIGN KEY` | Value must exist in the parent table |
+| `AUTO_INCREMENT` | MySQL generates 1, 2, 3 ... automatically |
+
+---
+
+## 4. Inserting, Modifying and Deleting
+
+### Insert data
+
+```sql
+INSERT INTO students (first_name, email, age, fees, joined_on)
+VALUES ('Asha', 'asha@mail.com', 21, 15000.00, '2026-08-01');
+
+-- many rows at once
+INSERT INTO students (first_name, email, age, fees, joined_on) VALUES
+  ('Ravi',  'ravi@mail.com',  23, 18000.00, '2026-08-01'),
+  ('Meena', 'meena@mail.com', 22, 15000.00, '2026-08-02');
+```
+
+### Modify a table (`ALTER`)
+
+```sql
+ALTER TABLE students ADD COLUMN city VARCHAR(40);           -- add column
+ALTER TABLE students MODIFY COLUMN city VARCHAR(60);        -- change type
+ALTER TABLE students RENAME COLUMN city TO home_city;       -- rename column
+ALTER TABLE students DROP COLUMN home_city;                 -- remove column
+RENAME TABLE students TO learners;                          -- rename table
+```
+
+### Modify and delete data
+
+```sql
+UPDATE students SET fees = 20000 WHERE student_id = 2;      -- change a row
+DELETE FROM students WHERE student_id = 3;                  -- remove a row
+```
+
+### Remove tables
+
+| Command | Removes | Structure survives? | Undo? |
+|---------|---------|:-------------------:|:-----:|
+| `DELETE FROM t WHERE ...` | Selected rows | Yes | Yes inside a transaction |
+| `TRUNCATE TABLE t` | All rows, resets AUTO_INCREMENT | Yes | No |
+| `DROP TABLE t` | Rows and the table itself | No | No |
+
+> **Golden rule:** `UPDATE` and `DELETE` without `WHERE` hit **every row**.
+
+---
+
+## 5. Lab Flow: Create a User, Build, Fill, Change
+
+```sql
+-- STEP 1: create a MySQL user (run as root/admin)
+CREATE USER 'student1'@'localhost' IDENTIFIED BY 'Str0ng#Pass';
+GRANT ALL PRIVILEGES ON school_db.* TO 'student1'@'localhost';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR 'student1'@'localhost';
+
+-- STEP 2: create database and tables
+CREATE DATABASE school_db;
+USE school_db;
+
+CREATE TABLE departments (
+    dept_id    INT PRIMARY KEY AUTO_INCREMENT,
+    dept_name  VARCHAR(50) NOT NULL
 );
 
--- Inspect structure
-SHOW TABLES;
-DESCRIBE students;          -- Shows 6 columns: Field, Type, Null, Key, Default, Extra
-SHOW CREATE TABLE students; -- Shows full CREATE statement and system-generated constraint names
+CREATE TABLE employees (
+    emp_id     INT PRIMARY KEY AUTO_INCREMENT,
+    emp_name   VARCHAR(50) NOT NULL,
+    salary     DECIMAL(10,2),
+    dept_id    INT,
+    FOREIGN KEY (dept_id) REFERENCES departments(dept_id)
+);
 
--- Insert Parent records first
-INSERT INTO departments (dept_id, dept_name) VALUES
-    (10, 'Computer Science'),
-    (20, 'Cyber Security'),
-    (30, 'Data Science');
+-- STEP 3: add data
+INSERT INTO departments (dept_name) VALUES ('IT'), ('HR'), ('Sales'), ('Legal');
+INSERT INTO employees (emp_name, salary, dept_id) VALUES
+  ('Asha',  60000, 1),
+  ('Ravi',  45000, 1),
+  ('Meena', 52000, 2),
+  ('Karan', 38000, 3),
+  ('Sneha', 41000, 3),
+  ('Omkar', 70000, 1),
+  ('Zoya',  35000, NULL);
 
--- Insert Child records (multi-row insert)
-INSERT INTO students (id, name, age, city, dept_id) VALUES
-    (1, 'Asha', 21, 'Pune', 10),
-    (2, 'Ravi', 22, 'Nashik', 20),
-    (3, 'Neha', 20, 'Mumbai', 10),
-    (4, 'Kabir', 23, 'Pune', NULL);
+-- STEP 4: modify and delete
+ALTER TABLE employees ADD COLUMN city VARCHAR(40);
+UPDATE employees SET city = 'Pune' WHERE dept_id = 1;
+DROP TABLE IF EXISTS temp_table;
+DROP DATABASE IF EXISTS old_db;
 ```
 
-### Modifying & Destroying Structures
+### User management quick reference
 
-#### Remodeling Tables (`ALTER TABLE` & `RENAME TABLE`)
+| Task | Command |
+|------|---------|
+| Create user | `CREATE USER 'u'@'localhost' IDENTIFIED BY 'pw';` |
+| Give rights | `GRANT SELECT, INSERT ON db.* TO 'u'@'localhost';` |
+| Take rights | `REVOKE INSERT ON db.* FROM 'u'@'localhost';` |
+| Delete user | `DROP USER 'u'@'localhost';` |
+
+**Recap:** Server contains databases, databases contain tables, tables contain rows and columns. Build with `CREATE`, fill with `INSERT`, reshape with `ALTER`, destroy with `DROP`. Always protect `UPDATE`/`DELETE` with `WHERE`.
+
+---
+
+### Sample data used from here on
+
+**departments**
+
+| dept_id | dept_name |
+|:-------:|-----------|
+| 1 | IT |
+| 2 | HR |
+| 3 | Sales |
+| 4 | Legal |
+
+**employees**
+
+| emp_id | emp_name | salary | dept_id |
+|:------:|----------|-------:|:-------:|
+| 1 | Asha | 60000 | 1 |
+| 2 | Ravi | 45000 | 1 |
+| 3 | Meena | 52000 | 2 |
+| 4 | Karan | 38000 | 3 |
+| 5 | Sneha | 41000 | 3 |
+| 6 | Omkar | 70000 | 1 |
+| 7 | Zoya | 35000 | NULL |
+
+---
+
+# PART B: QUERYING
+
+## 6. SELECT: Fetching Data
 
 ```sql
--- Add a new column (can specify FIRST or AFTER another column)
-ALTER TABLE students ADD COLUMN email VARCHAR(100) AFTER name;
-
--- Change column data type, size, or position
-ALTER TABLE students MODIFY COLUMN name VARCHAR(100) NOT NULL;
-
--- Rename a column (MySQL 8.0+ clean syntax)
-ALTER TABLE students RENAME COLUMN name TO student_name;
-
--- Rename AND/OR change data type at once
-ALTER TABLE students CHANGE COLUMN student_name full_name VARCHAR(120);
-
--- Permanently remove a column and its data
-ALTER TABLE students DROP COLUMN email;
-
--- Rename the entire table (Once renamed, the old name 'students' no longer exists!)
-RENAME TABLE students TO student_details;
+SELECT * FROM employees;                         -- all columns, all rows
+SELECT emp_name, salary FROM employees;          -- chosen columns
+SELECT emp_name AS name, salary * 12 AS yearly   -- aliases and calculations
+FROM employees;
+SELECT DISTINCT dept_id FROM employees;          -- remove duplicates
+SELECT * FROM employees LIMIT 3;                 -- first 3 rows
 ```
 
-#### The Destruction Hierarchy (`DELETE` vs. `TRUNCATE` vs. `DROP`)
+**Reading order of a query in your head:** *SELECT what, FROM where, WHERE which rows, ORDER BY how.*
 
-| Command | Analogy | Keeps Empty Table? | Resets `AUTO_INCREMENT`? | Allows `WHERE`? | Can `ROLLBACK`? |
-| :--- | :--- | :---: | :---: | :---: | :---: |
-| **`DELETE FROM tbl`** | Erasing specific lines in a register | Yes | No | **Yes** | **Yes** |
-| **`TRUNCATE TABLE tbl`** | Tearing out all pages, keeping the cover | Yes | **Yes** (resets to `1`) | No | **No** |
-| **`DROP TABLE tbl`** | Burning the entire register | **No** | N/A | No | **No** |
-| **`DROP DATABASE db`** | Demolishing the entire filing cabinet | **No** | N/A | No | **No** |
+---
+
+## 7. WHERE: Filtering Rows
 
 ```sql
--- Safe teardown sequence (Always drop Child tables before Parent tables)
-DROP TABLE IF EXISTS student_details;
-DROP TABLE IF EXISTS departments;
-DROP DATABASE IF EXISTS college_db;
+SELECT * FROM employees WHERE salary > 40000;
+SELECT * FROM employees WHERE dept_id = 1 AND salary >= 60000;
+SELECT * FROM employees WHERE dept_id = 2 OR dept_id = 3;
+```
+
+### Operator toolbox
+
+| Type | Operators | Example |
+|------|-----------|---------|
+| Compare | `=  !=  <>  <  >  <=  >=` | `salary >= 50000` |
+| Logic | `AND  OR  NOT` | `dept_id = 1 AND salary > 50000` |
+| Range | `BETWEEN a AND b` (inclusive) | `salary BETWEEN 40000 AND 60000` |
+| List | `IN (...)` / `NOT IN (...)` | `dept_id IN (1, 3)` |
+| Pattern | `LIKE` with `%` (any text) and `_` (one char) | `emp_name LIKE 'A%'` |
+| Null test | `IS NULL` / `IS NOT NULL` | `dept_id IS NULL` |
+
+**Pattern cheat**
+
+| Pattern | Matches |
+|---------|---------|
+| `'A%'` | Starts with A |
+| `'%a'` | Ends with a |
+| `'%an%'` | Contains "an" |
+| `'_s%'` | Second letter is s |
+
+> **Trap:** `dept_id = NULL` never works. NULL is "unknown", so use `IS NULL`.
+
+**Precedence:** `NOT` first, then `AND`, then `OR`. Use brackets when mixing: `WHERE (a OR b) AND c`.
+
+---
+
+## 8. ORDER BY: Sorting Results
+
+```sql
+SELECT * FROM employees ORDER BY salary;                    -- ascending (default)
+SELECT * FROM employees ORDER BY salary DESC;               -- highest first
+SELECT * FROM employees ORDER BY dept_id ASC, salary DESC;  -- sort by two keys
+SELECT * FROM employees ORDER BY salary DESC LIMIT 3;       -- top 3 earners
+```
+
+| Keyword | Direction | Use case |
+|---------|-----------|----------|
+| `ASC` | Small to large, A to Z, old to new | Default |
+| `DESC` | Large to small, Z to A, new to old | Top-N, latest first |
+
+**Analytical patterns**
+
+```sql
+-- Top 3 highest paid
+SELECT emp_name, salary FROM employees ORDER BY salary DESC LIMIT 3;
+-- Lowest paid in department 3
+SELECT emp_name, salary FROM employees WHERE dept_id = 3 ORDER BY salary LIMIT 1;
 ```
 
 ---
 
-## 3. Pillar II: Querying, Filtering, Sorting & Joins
+## 9. JOIN: Combining Tables
 
-### Fetching & Deduplicating Data (`SELECT` & `DISTINCT`)
+**Why?** Data is split across tables to avoid repetition. A JOIN stitches it back together using a matching column (the foreign key).
+
+```
+ employees                     departments
+ +--------+---------+         +---------+-----------+
+ | emp_id | dept_id |--match--| dept_id | dept_name |
+ +--------+---------+         +---------+-----------+
+```
+
+### The four joins
+
+```
+ INNER JOIN         LEFT JOIN          RIGHT JOIN         FULL (UNION)
+  A ( [x] ) B       A ( [x] ) B         A ( [x] ) B       A ( [x] ) B
+  only matches      all of A +          all of B +         everything
+  (the overlap)     matches from B      matches from A
+```
+
+| Join | Returns | Unmatched rows |
+|------|---------|----------------|
+| `INNER JOIN` | Only rows with a match in both tables | Dropped |
+| `LEFT JOIN` | All rows from the left table | Right side shows `NULL` |
+| `RIGHT JOIN` | All rows from the right table | Left side shows `NULL` |
+| `CROSS JOIN` | Every row paired with every row (A x B) | Not applicable |
+
+### Examples with our data
 
 ```sql
--- Fetch specific columns and calculated expressions with readable aliases
-SELECT id, name AS student_name, age + 1 AS next_year_age
-FROM students;
-
--- Return unique cities only
-SELECT DISTINCT city FROM students;
-
--- Multi-column DISTINCT: returns unique pairs of (city + dept_id)
-SELECT DISTINCT city, dept_id FROM students;
+-- INNER: employees that have a department
+SELECT e.emp_name, d.dept_name
+FROM employees e
+INNER JOIN departments d ON e.dept_id = d.dept_id;
 ```
-
-> **Key Rule:** `DISTINCT` must immediately follow `SELECT` and applies to the **entire row** of selected columns combined, never just the first column.
-
-### Precision Filtering (`WHERE`)
-
-`WHERE` tests every row and keeps only rows where the condition evaluates to **`TRUE`**.
-
-| Operator | Purpose | Example | Crucial Detail |
-| :--- | :--- | :--- | :--- |
-| `=`, `<>` (`!=`), `<`, `>`, `<=`, `>=` | Standard comparisons | `WHERE age >= 21` | `<>` is standard SQL; `!=` also works in MySQL |
-| `<=>` | `NULL`-safe equal | `WHERE dept_id <=> NULL` | Returns `TRUE` even when comparing `NULL <=> NULL` |
-| `AND`, `OR`, `NOT` | Combine conditions | `WHERE city = 'Pune' AND age > 20` | **Precedence:** `NOT` $\rightarrow$ `AND` $\rightarrow$ `OR` (use parentheses!) |
-| `BETWEEN a AND b` | Inclusive range | `WHERE age BETWEEN 20 AND 22` | Includes **both** `20` and `22` (`>= 20 AND <= 22`) |
-| `IN (v1, v2, ...)` | Match any item in list | `WHERE city IN ('Pune', 'Mumbai')` | Cleaner replacement for chained `OR` statements |
-| `LIKE 'pattern'` | Text wildcard search | `WHERE name LIKE '_a%'` | `%` = 0 or more chars; `_` = **exact 1 char** (`_a%` = 2nd letter `'a'`) |
-| `IS NULL` / `IS NOT NULL` | Test for missing values | `WHERE dept_id IS NULL` | **Never write `= NULL`** |
-
-#### Understanding `NULL` (Three-Valued Logic)
-In SQL, `NULL` does **not** mean zero or blank—it means **"unknown"**. Because an unknown value cannot be proven equal or unequal to anything:
-* `NULL = NULL` evaluates to **`UNKNOWN`** (treated as false in `WHERE`), **never `TRUE`**.
-* `WHERE city <> 'Pune'` silently **excludes** rows where `city` is `NULL`!
-* `WHERE dept_id NOT IN (10, 20, NULL)` returns **0 rows** because `x <> NULL` is `UNKNOWN` for every row.
-* **Fallback Helpers:** `IFNULL(col, 'N/A')` or `COALESCE(col1, col2, 'N/A')` replaces `NULL` with the first non-`NULL` value in the output.
-
-### Sorting & Pagination (`ORDER BY` & `LIMIT`)
-
-Without `ORDER BY`, SQL makes **zero guarantees** about the order in which rows appear.
+Result: 6 rows (Zoya is missing because her `dept_id` is NULL).
 
 ```sql
--- Sort by age highest-to-lowest; break ties alphabetically by name
-SELECT name, age
-FROM students
-ORDER BY age DESC, name ASC;
-
--- Pagination pattern: Skip the 1st oldest student, return the next 2
-SELECT name, age
-FROM students
-ORDER BY age DESC
-LIMIT 2 OFFSET 1;
+-- LEFT: all employees, department if any
+SELECT e.emp_name, d.dept_name
+FROM employees e
+LEFT JOIN departments d ON e.dept_id = d.dept_id;
 ```
-
-> **How `NULL` Sorts in MySQL:** MySQL treats `NULL` as the **lowest possible value**—so `ORDER BY col ASC` puts `NULL`s **first**, and `ORDER BY col DESC` puts `NULL`s **last**.
-
-### Combining Tables (`JOIN`)
-
-Joins stitch columns from multiple tables together side-by-side using matching key columns.
-
-```text
-Left Table: `students`            Right Table: `departments`
-+----+-------+---------+          +---------+------------------+
-| id | name  | dept_id |          | dept_id | dept_name        |
-+----+-------+---------+          +---------+------------------+
-| 1  | Asha  | 10      | <======> | 10      | Computer Science |
-| 2  | Ravi  | 20      | <======> | 20      | Cyber Security   |
-| 4  | Kabir | NULL    |   (no)   | 30      | Data Science     |
-+----+-------+---------+          +---------+------------------+
-```
-
-| Join Type | What It Keeps | Result on Example Above |
-| :--- | :--- | :--- |
-| **`INNER JOIN`** (`JOIN`) | Only rows that match in **both** tables | Asha (`10`), Ravi (`20`) — *Kabir & Data Science dropped* |
-| **`LEFT JOIN`** | **All Left rows** + matched Right rows (`NULL` if none) | Asha (`10`), Ravi (`20`), **Kabir (`NULL`)** |
-| **`RIGHT JOIN`** | **All Right rows** + matched Left rows (`NULL` if none) | Asha (`10`), Ravi (`20`), **`NULL` (Data Science)** |
-| **`CROSS JOIN`** | Every Left row paired with every Right row (Cartesian) | $4 \text{ students} \times 3 \text{ depts} = 12 \text{ combinations}$ |
-| **`SELF JOIN`** | A table joined to **itself** via two different aliases | Matching employees to their managers in one table |
+Result: 7 rows (Zoya appears with `dept_name = NULL`).
 
 ```sql
--- 1. Standard INNER JOIN (USING(dept_id) can replace ON when column names match)
-SELECT s.name, d.dept_name
-FROM students s
-INNER JOIN departments d ON s.dept_id = d.dept_id;
+-- RIGHT: all departments, employees if any
+SELECT d.dept_name, e.emp_name
+FROM employees e
+RIGHT JOIN departments d ON e.dept_id = d.dept_id;
+```
+Result: includes **Legal** with `emp_name = NULL`.
 
--- 2. LEFT JOIN to keep unassigned students (Kabir appears with dept_name = NULL)
-SELECT s.name, d.dept_name
-FROM students s
-LEFT JOIN departments d ON s.dept_id = d.dept_id;
-
--- 3. Anti-Join Pattern: Find students who have NO department assigned
-SELECT s.name
-FROM students s
-LEFT JOIN departments d ON s.dept_id = d.dept_id
-WHERE d.dept_id IS NULL;
-
--- 4. Multi-Table Join (Chaining 3 tables)
-SELECT s.name, d.dept_name, c.course_title
-FROM students s
-JOIN departments d ON s.dept_id = d.dept_id
-JOIN courses c ON d.dept_id = c.dept_id;
+```sql
+-- Find departments with NO employees (LEFT + IS NULL trick)
+SELECT d.dept_name
+FROM departments d
+LEFT JOIN employees e ON d.dept_id = e.dept_id
+WHERE e.emp_id IS NULL;
 ```
 
-> **Exam Note on `FULL OUTER JOIN`:** MySQL does **not** have a `FULL OUTER JOIN` keyword. To get all rows from both sides, combine a `LEFT JOIN` and a `RIGHT JOIN` using `UNION`.
->
-> **Classic `LEFT JOIN` Trap:** Filtering a Right-table column inside `WHERE` (e.g., `LEFT JOIN departments d ON ... WHERE d.dept_name = 'Computer Science'`) drops all unmatched rows because `NULL = 'Computer Science'` is false—turning your `LEFT JOIN` into an `INNER JOIN`! Put Right-table matching conditions in the `ON` clause instead.
+### Join checklist
+
+1. Pick the tables.
+2. Give them short aliases (`e`, `d`).
+3. State the match with `ON`.
+4. Choose the join type by asking: "Do I want unmatched rows?"
+
+**Recap:** `SELECT` picks columns, `WHERE` picks rows, `ORDER BY` arranges them, `JOIN` merges tables. Unmatched rows are what separates INNER from LEFT and RIGHT.
 
 ---
 
-## 4. Pillar III: Aggregations, Grouping & Subqueries
+# PART C: AGGREGATION
 
-### Aggregate Functions (`COUNT`, `SUM`, `AVG`, `MIN`, `MAX`)
+## 10. Aggregate Functions: Many Rows In, One Value Out
 
-Aggregate functions compress many rows into a **single summary number**.
-
-| Function | What It Calculates | How It Treats `NULL` Values |
-| :--- | :--- | :--- |
-| **`COUNT(*)`** | Total count of rows | **Counts `NULL` rows too** |
-| **`COUNT(col)`** | Count of non-empty values in `col` | **Ignores `NULL`s** |
-| **`COUNT(DISTINCT col)`** | Count of unique non-empty values | **Ignores `NULL`s** and duplicates |
-| **`SUM(col)`** | Total sum of numeric values | **Ignores `NULL`s** (returns `NULL` if all rows are `NULL`) |
-| **`AVG(col)`** | Arithmetic mean ($\text{SUM} \div \text{COUNT(col)}$) | **Ignores `NULL`s in BOTH sum and row count!** |
-| **`MIN(col)` / `MAX(col)`** | Smallest / Largest value | **Ignores `NULL`s** |
-
-#### The `AVG` + `NULL` Calculation Trap
-Imagine 4 students have marks: `100`, `80`, `60`, and `NULL`:
-* `COUNT(*)` = **`4`**
-* `COUNT(marks)` = **`3`**
-* `SUM(marks)` = **`240`**
-* `AVG(marks)` = $240 \div 3 =$ **`80.00`** *(NOT $240 \div 4 = 60$! `NULL` is excluded from the denominator.)*
-
-### Grouping & Filtering Buckets (`GROUP BY` & `HAVING`)
-
-* **`GROUP BY`** gathers rows sharing the same column value into buckets so aggregates run once per bucket.
-* **`HAVING`** filters those buckets *after* aggregates are computed.
-
-#### The Strict `GROUP BY` Rule
-Every column in `SELECT` that is **not** inside an aggregate function (`COUNT`, `SUM`, `AVG`, `MIN`, `MAX`) **must** be listed in `GROUP BY`. Otherwise, MySQL throws `ERROR 1055` (`ONLY_FULL_GROUP_BY`).
-
-#### `WHERE` vs. `HAVING` Side-by-Side
-
-| Dimension | `WHERE` | `HAVING` |
-| :--- | :--- | :--- |
-| **Execution Timing** | **Before** `GROUP BY` (Step 2) | **After** `GROUP BY` (Step 4) |
-| **What It Filters** | Individual raw rows | Grouped summary buckets |
-| **Aggregate Functions Allowed?** | **No** (`WHERE COUNT(*) > 1` is an error) | **Yes** (`HAVING COUNT(*) > 1` is valid) |
-| **Best Practice** | Filter raw rows in `WHERE` first to reduce workload | Use `HAVING` only for conditions on aggregates |
+| Function | Does | Example | Result on our data |
+|----------|------|---------|-------------------:|
+| `COUNT(*)` | Counts all rows | `SELECT COUNT(*) FROM employees;` | 7 |
+| `COUNT(col)` | Counts non-NULL values | `COUNT(dept_id)` | 6 |
+| `SUM(col)` | Total | `SUM(salary)` | 341000 |
+| `AVG(col)` | Average | `AVG(salary)` | 48714.29 |
+| `MIN(col)` | Smallest | `MIN(salary)` | 35000 |
+| `MAX(col)` | Largest | `MAX(salary)` | 70000 |
 
 ```sql
--- Complete Analytical Pipeline:
--- 1. Consider only students aged 20+ (WHERE)
--- 2. Group them by city (GROUP BY)
--- 3. Keep only cities with more than 1 student (HAVING)
--- 4. Sort largest cities first (ORDER BY)
-SELECT city,
-       COUNT(*) AS total_students,
-       ROUND(AVG(age), 1) AS average_age
-FROM students
-WHERE age >= 20
-GROUP BY city
-HAVING COUNT(*) > 1
-ORDER BY total_students DESC;
+SELECT COUNT(*) AS total_staff,
+       SUM(salary) AS payroll,
+       AVG(salary) AS avg_pay,
+       MAX(salary) AS top_pay
+FROM employees;
 ```
 
-### Subqueries & Nested Queries
-
-A **subquery** is a `SELECT` query wrapped inside parentheses `( ... )` nested within an outer query. The inner query solves an intermediate question and feeds its answer to the outer query.
-
-#### The 5 Subquery Patterns
-
-1. **Scalar Subquery (Returns 1 single value: 1 row $\times$ 1 column)**
-   Used with standard comparison operators (`=`, `<`, `>`, `<=`, `>=`).
-   ```sql
-   -- Find students older than the overall class average
-   SELECT name, age
-   FROM students
-   WHERE age > (SELECT AVG(age) FROM students);
-   ```
-
-2. **Multi-Row Subquery (Returns a list of values: N rows $\times$ 1 column)**
-   Used with `IN`, `NOT IN`, `ANY`, or `ALL`:
-   * `> ANY (...)` $\rightarrow$ Greater than the **minimum** value in the list.
-   * `> ALL (...)` $\rightarrow$ Greater than the **maximum** value in the list.
-   ```sql
-   -- Find students belonging to departments named 'Computer Science' or 'Data Science'
-   SELECT name
-   FROM students
-   WHERE dept_id IN (
-       SELECT dept_id
-       FROM departments
-       WHERE dept_name IN ('Computer Science', 'Data Science')
-   );
-   ```
-
-3. **Correlated Subquery (Inner query depends on the outer query)**
-   The inner query references a column from the outer table and re-runs once per candidate row.
-   ```sql
-   -- Find students older than the average age of THEIR OWN department
-   SELECT s1.name, s1.dept_id, s1.age
-   FROM students s1
-   WHERE s1.age > (
-       SELECT AVG(s2.age)
-       FROM students s2
-       WHERE s2.dept_id = s1.dept_id
-   );
-   ```
-
-4. **Existence Check (`EXISTS` / `NOT EXISTS`)**
-   Returns `TRUE` as soon as the inner query finds at least one matching row (fast and immune to `NULL` traps).
-   ```sql
-   -- Find departments that have at least one enrolled student
-   SELECT d.dept_name
-   FROM departments d
-   WHERE EXISTS (
-       SELECT 1 FROM students s WHERE s.dept_id = d.dept_id
-   );
-   ```
-
-5. **Derived Table (Subquery inside `FROM`)**
-   Treats a query result as a temporary virtual table. **MySQL requires an alias (`AS ...`) on every derived table.**
-   ```sql
-   -- Find the highest department average age
-   SELECT MAX(dept_avg) AS highest_avg_age
-   FROM (
-       SELECT dept_id, AVG(age) AS dept_avg
-       FROM students
-       WHERE dept_id IS NOT NULL
-       GROUP BY dept_id
-   ) AS dept_averages;
-   ```
+> Aggregates **ignore NULL** (except `COUNT(*)`).
 
 ---
 
-## 5. Common MySQL Errors & Trap-Avoidance Checklist
+## 11. GROUP BY: One Result per Group
 
-| Error Message / Scenario | Root Cause & Exact Fix |
-| :--- | :--- |
-| **`No database selected`** | You haven't entered a database yet. Run `USE database_name;`. |
-| **`Unknown column '...' in 'where clause'`** | Typo in column name, or trying to use a `SELECT` alias inside `WHERE`. |
-| **`Duplicate entry '...' for key 'PRIMARY'`** | Violated a `PRIMARY KEY` or `UNIQUE` constraint with an existing value. |
-| **`Cannot add or update a child row`** | Foreign key error: the parent ID doesn't exist yet. Insert into parent table first. |
-| **`Cannot delete or update a parent row`** | Foreign key error: child rows still reference this parent. Delete children first or use `ON DELETE CASCADE`. |
-| **`Column '...' cannot be null`** | Omitted a value for a `NOT NULL` column that has no `DEFAULT`. |
-| **`You have an error in your SQL syntax`** | Missing comma/semicolon, mismatched quotes, or an unquoted reserved word (wrap in `` `backticks` ``). |
-| **`Access denied for user '...'@'...'`** | Wrong password, wrong host (`localhost` vs `%`), or missing `GRANT` privileges. |
+```
+ Raw rows                     GROUP BY dept_id            Aggregate each group
+ --------------------         ---------------------       ---------------------
+ Asha   IT   60000            [IT]    60000               IT     -> SUM = 175000
+ Ravi   IT   45000    ---->           45000     ---->     HR     -> SUM =  52000
+ Omkar  IT   70000                    70000               Sales  -> SUM =  79000
+ Meena  HR   52000            [HR]    52000
+ Karan  Sales 38000           [Sales] 38000
+ Sneha  Sales 41000                   41000
+```
 
-### 10 Golden Rules for Exam Accuracy
-1. **Execution Order:** `FROM` $\rightarrow$ `JOIN` $\rightarrow$ `WHERE` $\rightarrow$ `GROUP BY` $\rightarrow$ `HAVING` $\rightarrow$ `SELECT` $\rightarrow$ `DISTINCT` $\rightarrow$ `ORDER BY` $\rightarrow$ `LIMIT`.
-2. **MySQL Schema Synonym:** `CREATE SCHEMA` and `CREATE DATABASE` are identical in MySQL.
-3. **Unselected Database:** `SELECT DATABASE();` returns `NULL` (not `''`) before `USE` is executed.
-4. **Quotes:** Backticks (`` ` ``) wrap column/table names; single quotes (`'`) wrap text/date values.
-5. **Undo Rules:** `CREATE`, `ALTER`, `DROP`, and `TRUNCATE` (DDL) auto-commit and **cannot** be rolled back; `DELETE` (DML) **can** be rolled back inside a transaction.
-6. **`NULL` Logic:** Always use `IS NULL` / `IS NOT NULL` (or `<=>`)—never `= NULL` or `<> NULL`.
-7. **`NULL` in Aggregates:** `COUNT(*)` counts `NULL`s; `COUNT(col)`, `SUM(col)`, `AVG(col)`, `MIN(col)`, and `MAX(col)` all ignore `NULL`s.
-8. **`WHERE` vs. `HAVING`:** `WHERE` filters rows before grouping (no aggregates); `HAVING` filters groups after grouping (aggregates allowed).
-9. **`GROUP BY` Rule:** Every non-aggregated column in `SELECT` must also appear in `GROUP BY`.
-10. **Derived Tables:** Every subquery in a `FROM` clause **must** be given an alias.
+```sql
+SELECT dept_id, COUNT(*) AS headcount, AVG(salary) AS avg_pay
+FROM employees
+GROUP BY dept_id;
+```
+
+| dept_id | headcount | avg_pay |
+|:-------:|:---------:|--------:|
+| 1 | 3 | 58333.33 |
+| 2 | 1 | 52000.00 |
+| 3 | 2 | 39500.00 |
+| NULL | 1 | 35000.00 |
+
+**With a join, to show department names**
+
+```sql
+SELECT d.dept_name, COUNT(e.emp_id) AS headcount, SUM(e.salary) AS payroll
+FROM departments d
+LEFT JOIN employees e ON d.dept_id = e.dept_id
+GROUP BY d.dept_name;
+```
+
+> **Rule:** every column in `SELECT` must be either inside an aggregate function or listed in `GROUP BY`.
+
+---
+
+## 12. HAVING: Filtering Groups
+
+```sql
+-- Departments whose average salary is above 40000
+SELECT dept_id, AVG(salary) AS avg_pay
+FROM employees
+GROUP BY dept_id
+HAVING AVG(salary) > 40000;
+```
+
+### WHERE vs HAVING
+
+| | `WHERE` | `HAVING` |
+|---|---------|----------|
+| Filters | Individual **rows** | Whole **groups** |
+| Runs | **Before** grouping | **After** grouping |
+| Can use aggregates? | No | Yes |
+| Example | `WHERE salary > 40000` | `HAVING COUNT(*) > 2` |
+
+**Using both together**
+
+```sql
+-- Ignore people earning under 40000, then keep only groups with 2+ people
+SELECT dept_id, COUNT(*) AS headcount
+FROM employees
+WHERE salary >= 40000      -- row filter first
+GROUP BY dept_id
+HAVING COUNT(*) >= 2;      -- group filter after
+```
+
+**Memory hook:** *WHERE filters people; HAVING filters teams.*
+
+---
+
+## 13. Subqueries: A Query Inside a Query
+
+A subquery runs first, and its result feeds the outer query.
+
+```
+ SELECT ...  FROM employees
+ WHERE salary > ( SELECT AVG(salary) FROM employees );
+                  \_______ inner query runs first ______/
+```
+
+### Where subqueries can live
+
+| Position | Example | Purpose |
+|----------|---------|---------|
+| In `WHERE` (single value) | `salary > (SELECT AVG(salary) FROM employees)` | Compare to a computed value |
+| In `WHERE` with `IN` (list) | `dept_id IN (SELECT dept_id FROM departments WHERE dept_name = 'IT')` | Match against a set |
+| In `FROM` (derived table) | `FROM (SELECT dept_id, AVG(salary) a FROM employees GROUP BY dept_id) t` | Query a summary |
+| In `SELECT` | `(SELECT COUNT(*) FROM employees)` as a column | Show a computed value per row |
+| With `EXISTS` | `WHERE EXISTS (SELECT 1 FROM employees e WHERE e.dept_id = d.dept_id)` | Check that related rows exist |
+
+### Examples
+
+```sql
+-- Employees earning above company average
+SELECT emp_name, salary
+FROM employees
+WHERE salary > (SELECT AVG(salary) FROM employees);
+
+-- Employees who work in IT
+SELECT emp_name
+FROM employees
+WHERE dept_id IN (SELECT dept_id FROM departments WHERE dept_name = 'IT');
+
+-- Second highest salary (nested)
+SELECT MAX(salary)
+FROM employees
+WHERE salary < (SELECT MAX(salary) FROM employees);
+
+-- Departments that have no employees
+SELECT dept_name
+FROM departments
+WHERE dept_id NOT IN (SELECT dept_id FROM employees WHERE dept_id IS NOT NULL);
+```
+
+> **Trap:** `NOT IN` returns nothing if the subquery contains a NULL. Filter NULLs out, as shown above.
+
+### Subquery types in one line each
+
+| Type | Returns |
+|------|---------|
+| Scalar | One value (one row, one column) |
+| Row / column | A list of values, used with `IN`, `ANY`, `ALL` |
+| Table | A full result used like a table in `FROM` |
+| Correlated | Depends on the outer row, so it re-runs for each row |
+
+**Recap:** Aggregates collapse rows, `GROUP BY` makes one collapse per group, `HAVING` filters those groups, and subqueries let one query feed another.
+
+---
+
+# PART D: THE MASTER VIEW
+
+## 14. The Full Query Anatomy
+
+How you **write** it:
+
+```sql
+SELECT   columns / aggregates        -- 5
+FROM     table                       -- 1
+JOIN     other_table ON condition    -- 2
+WHERE    row_condition               -- 3
+GROUP BY grouping_columns            -- 4
+HAVING   group_condition             -- 6
+ORDER BY sort_columns                -- 7
+LIMIT    n;                          -- 8
+```
+
+How MySQL **executes** it (numbers above):
+
+```
+ FROM/JOIN --> WHERE --> GROUP BY --> SELECT --> HAVING --> ORDER BY --> LIMIT
+   pick &      filter     make        compute    filter     sort        cut
+   merge       rows       groups      columns    groups
+```
+
+**Memory hook:** *"From Jane's Wonderful Garden, Selecting Healthy Orchids Lovingly"*
+(**F**rom, **J**oin, **W**here, **G**roup by, **S**elect, **H**aving, **O**rder by, **L**imit)
+
+---
+
+## 15. One-Page Cheat Sheet
+
+| I want to... | Use |
+|--------------|-----|
+| Make / remove a database | `CREATE DATABASE x;` / `DROP DATABASE x;` |
+| Switch database | `USE x;` |
+| Make a table | `CREATE TABLE t (col type constraint, ...);` |
+| Add rows | `INSERT INTO t (cols) VALUES (...);` |
+| Change a row | `UPDATE t SET c = v WHERE ...;` |
+| Delete rows | `DELETE FROM t WHERE ...;` |
+| Change structure | `ALTER TABLE t ADD / MODIFY / DROP COLUMN ...;` |
+| Get data | `SELECT cols FROM t;` |
+| Filter rows | `WHERE`, `AND`, `OR`, `IN`, `BETWEEN`, `LIKE`, `IS NULL` |
+| Sort | `ORDER BY col ASC/DESC` |
+| Top N | `ORDER BY col DESC LIMIT n` |
+| Combine tables | `INNER / LEFT / RIGHT JOIN ... ON ...` |
+| Calculate | `COUNT, SUM, AVG, MIN, MAX` |
+| Group | `GROUP BY col` |
+| Filter groups | `HAVING aggregate_condition` |
+| Query in a query | `WHERE col > (SELECT ...)` |
+
+---
+
+## 16. Top Mistakes and Fixes
+
+| Mistake | Fix |
+|---------|-----|
+| `UPDATE` / `DELETE` without `WHERE` | Always write `WHERE` first, test with `SELECT` |
+| `= NULL` | Use `IS NULL` |
+| Aggregate in `WHERE` | Move it to `HAVING` |
+| Selecting a column not in `GROUP BY` | Add it to `GROUP BY` or wrap it in an aggregate |
+| `INNER JOIN` loses unmatched rows | Use `LEFT JOIN` if you need them |
+| `NOT IN` with NULLs in subquery | Add `WHERE col IS NOT NULL` inside the subquery |
+| Forgetting `ON` in a join | Creates a huge cross product |
+| `DROP` on the wrong database | Use `SHOW DATABASES;` and `USE` to confirm first |
+
+---
+
+## 17. Practice Drills (Try Without Looking)
+
+**Build**
+1. Create a database `company_db` and select it.
+2. Create `departments` and `employees` tables with a primary key and a foreign key.
+3. Insert at least 5 employees across 3 departments.
+4. Add a `city` column, then drop it again.
+
+**Query**
+5. List all employees earning more than 45000, highest first.
+6. List employees whose name starts with `S` or ends with `a`.
+7. Show every employee with their department name (INNER JOIN).
+8. Show every department, even those with no employees (LEFT JOIN).
+
+**Summarise**
+9. Total payroll and average salary of the company.
+10. Headcount per department.
+11. Departments with more than 1 employee (HAVING).
+12. Employees earning more than the average of their own department (correlated subquery).
+
+<details>
+<summary>Answers</summary>
+
+```sql
+-- 5
+SELECT * FROM employees WHERE salary > 45000 ORDER BY salary DESC;
+-- 6
+SELECT * FROM employees WHERE emp_name LIKE 'S%' OR emp_name LIKE '%a';
+-- 7
+SELECT e.emp_name, d.dept_name FROM employees e
+INNER JOIN departments d ON e.dept_id = d.dept_id;
+-- 8
+SELECT d.dept_name, e.emp_name FROM departments d
+LEFT JOIN employees e ON d.dept_id = e.dept_id;
+-- 9
+SELECT SUM(salary), AVG(salary) FROM employees;
+-- 10
+SELECT dept_id, COUNT(*) FROM employees GROUP BY dept_id;
+-- 11
+SELECT dept_id, COUNT(*) FROM employees GROUP BY dept_id HAVING COUNT(*) > 1;
+-- 12
+SELECT emp_name, salary FROM employees e
+WHERE salary > (SELECT AVG(salary) FROM employees WHERE dept_id = e.dept_id);
+```
+</details>
+
+---
+
+## 18. Final Mental Model
+
+```
+        +------------------------------------------------+
+        |  BUILD  ->  CREATE, INSERT, ALTER, DROP        |
+        |  ASK    ->  SELECT, WHERE, ORDER BY, JOIN      |
+        |  SUMMARISE -> COUNT/SUM/AVG, GROUP BY, HAVING  |
+        |  NEST   ->  (SELECT ... ) inside SELECT        |
+        +------------------------------------------------+
+         Rows are filtered by WHERE. Groups are filtered by HAVING.
+         INNER keeps matches. LEFT keeps everything on the left.
+```
