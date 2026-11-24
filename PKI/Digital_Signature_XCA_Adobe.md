@@ -1,118 +1,80 @@
-# Digital Signature of a PDF on Windows (XCA + Adobe Acrobat)
+# Digital Signature of a PDF on Windows
 
-**Everything is done on one Windows machine, using only the GUI. No commands needed.**
-
-## Overview
-
-**Goal:** Build a PKI in XCA (Root CA → Sub CA), issue a signing certificate to a user, load it into Adobe Acrobat, sign a PDF, and verify the signature.
+**Tools:** XCA and Adobe Acrobat
+**Platform:** Windows (GUI only)
 
 | Item | Value |
 |---|---|
-| OS | Windows |
-| Tool 1 | XCA (certificate and key management) |
-| Tool 2 | Adobe Acrobat / Acrobat Reader |
-| CA chain | DITISS Root CA → DITISS Sub CA |
-| Signer | Alice (`alice@cdac.in`) |
-| Files produced | `alice.p12`, `root.crt`, `document_signed.pdf` |
+| Root CA | DITISS Root CA |
+| Sub CA | DITISS Sub CA |
+| Signer | shubham (shubham@cdac.in) |
+| Files created | shubham.pfx, rootca.crt, document_signed.pdf |
+| Working folder | C:\ditiss |
 
 ```
-DITISS Root CA ──signs──► DITISS Sub CA ──signs──► Alice (user certificate)
-   (10 years)                (5 years)                  (1 year)
-
-alice.p12 ──imported into──► Adobe ──signs──► document_signed.pdf
+DITISS Root CA ──signs──► DITISS Sub CA ──signs──► shubham
 ```
-
-**Why a user certificate?** A server certificate is meant for TLS. Adobe needs a certificate whose key usage allows **signing** (Digital Signature, Non Repudiation).
-
-## Workflow
-
-```
-PART 1 (XCA):
-  1. Install + Database ➜ 2. Root CA ➜ 3. Sub CA ➜ 4. Alice cert ➜ 5. Export
-
-PART 2 (Adobe):
-  1. Trust root ➜ 2. Add Digital ID ➜ 3. Sign PDF ➜ 4. Verify
-```
-
-**Before you start, create a folder** `C:\ditiss` using File Explorer. Everything (database, exported files) will be saved here, so it is easy to find.
 
 ---
 
 # PART 1: XCA
 
-**Goal:** Create the Root CA, Sub CA and Alice's certificate, then export `alice.p12` and `root.crt`.
+## Step 1: Create the Database
 
----
-
-## Step 1: Install XCA and Create the Database
-
-**1.1 Install XCA**
-
-1. Open the XCA releases page on GitHub (`github.com/chris2511/xca/releases`).
-2. Download the Windows installer (`.msi` or `.exe`).
-3. Double-click it, click **Next** through the wizard, then **Finish**.
-4. Open **XCA** from the Start menu.
-
-**1.2 Create the database**
-
-1. Click **File > New Database**.
-2. Go to the folder `C:\ditiss`.
-3. Name it `ditiss` and click **Save**.
-4. When asked for a password, leave it empty and click **OK**.
-
-**XCA tabs you will use**
-
-| Tab | Used for |
-|---|---|
-| Private Keys | Keys created for the CAs and users |
-| Certificates | Root CA, Sub CA and user certificates |
-| Revocation lists | CRLs (not needed here) |
-
-> Every certificate is created in the same dialog, with the tabs **Source**, **Subject**, **Extensions** and **Key usage**.
+1. Create a folder named **ditiss** in the **C:** drive.
+2. Open **XCA**.
+3. Click **File > New Database**.
+4. Select the folder **C:\ditiss**.
+5. Enter the name **ditiss** and click **Save**.
+6. Leave the password empty and click **OK**.
 
 ---
 
 ## Step 2: Create the Root CA
 
-**2.1 Create the Root key**
+### 2.1 Create the key
 
-Go to **Private Keys** tab → click **New Key**
+Go to the **Private Keys** tab and click **New Key**. Enter:
 
 | Field | Value |
 |---|---|
-| Name | `root` |
+| Name | root |
 | Type | RSA |
 | Size | 4096 |
 
 Click **Create**.
 
-**2.2 Create the self-signed Root certificate**
+### 2.2 Create the certificate
 
-Go to **Certificates** tab → click **New Certificate**, then fill each tab:
+Go to the **Certificates** tab and click **New Certificate**. Fill in each tab as shown.
 
 **Source tab**
 
 | Field | Value |
 |---|---|
-| Signing | **Create a self signed certificate** |
+| Signing | Create a self signed certificate |
 | Signature algorithm | SHA 256 |
-| Template | `[default] CA` → click **Apply extensions** |
+| Template | [default] CA |
+
+Click **Apply extensions**.
 
 **Subject tab**
 
 | Field | Value |
 |---|---|
-| Country | `IN` |
-| Organisation | `CDAC` |
-| Common Name | `DITISS Root CA` |
-| Private key | `root` |
+| Country | IN |
+| Organisation | CDAC |
+| Common Name | DITISS Root CA |
+| Private key | root |
 
 **Extensions tab**
 
 | Field | Value |
 |---|---|
 | Type | Certification Authority |
-| Time range | 10 years → click **Apply** |
+| Time range | 10 years |
+
+Click **Apply**.
 
 **Key usage tab**
 
@@ -122,50 +84,44 @@ Go to **Certificates** tab → click **New Certificate**, then fill each tab:
 
 Click **OK**.
 
-**Why these settings?**
-
-| Setting | Reason |
-|---|---|
-| Self signed | The root is the trust anchor, so it signs itself. |
-| Certification Authority | Marks the certificate as a CA (`CA:TRUE`). |
-| Certificate Sign, CRL Sign | The root may sign certificates and revocation lists. |
-
 ---
 
 ## Step 3: Create the Sub CA
 
-**3.1 Create the Sub CA key**
+### 3.1 Create the key
 
-Go to **Private Keys** tab → click **New Key**
+Go to the **Private Keys** tab and click **New Key**. Enter:
 
 | Field | Value |
 |---|---|
-| Name | `sub` |
+| Name | sub |
 | Type | RSA |
 | Size | 2048 |
 
 Click **Create**.
 
-**3.2 Create the Sub CA certificate signed by the Root CA**
+### 3.2 Create the certificate
 
-Go to **Certificates** tab → click **New Certificate**, then fill each tab:
+Go to the **Certificates** tab and click **New Certificate**. Fill in each tab as shown.
 
 **Source tab**
 
 | Field | Value |
 |---|---|
-| Signing | Use this Certificate for signing: **DITISS Root CA** |
+| Signing | Use this Certificate for signing: DITISS Root CA |
 | Signature algorithm | SHA 256 |
-| Template | `[default] CA` → click **Apply extensions** |
+| Template | [default] CA |
+
+Click **Apply extensions**.
 
 **Subject tab**
 
 | Field | Value |
 |---|---|
-| Country | `IN` |
-| Organisation | `CDAC` |
-| Common Name | `DITISS Sub CA` |
-| Private key | `sub` |
+| Country | IN |
+| Organisation | CDAC |
+| Common Name | DITISS Sub CA |
+| Private key | sub |
 
 **Extensions tab**
 
@@ -173,7 +129,9 @@ Go to **Certificates** tab → click **New Certificate**, then fill each tab:
 |---|---|
 | Type | Certification Authority |
 | Path length | 0 |
-| Time range | 5 years → click **Apply** |
+| Time range | 5 years |
+
+Click **Apply**.
 
 **Key usage tab**
 
@@ -183,60 +141,55 @@ Go to **Certificates** tab → click **New Certificate**, then fill each tab:
 
 Click **OK**.
 
-**Why these settings?**
-
-| Setting | Reason |
-|---|---|
-| Use this Certificate for signing | The Root CA signs the Sub CA, which builds the chain. |
-| Path length 0 | The Sub CA can issue only end-entity certificates, not further CAs. |
-
-> In the Certificates tab the Sub CA now appears under the Root CA. The tree is the chain.
-
 ---
 
-## Step 4: Create the Signing Certificate for Alice
+## Step 4: Create the User Certificate
 
-**4.1 Create a key for Alice**
+### 4.1 Create the key
 
-Go to **Private Keys** tab → click **New Key**
+Go to the **Private Keys** tab and click **New Key**. Enter:
 
 | Field | Value |
 |---|---|
-| Name | `alice` |
+| Name | shubham |
 | Type | RSA |
 | Size | 2048 |
 
-Click **Create**. This key creates the signature, so it must stay private.
+Click **Create**.
 
-**4.2 Create the user certificate signed by the Sub CA**
+### 4.2 Create the certificate
 
-Go to **Certificates** tab → click **New Certificate**, then fill each tab:
+Go to the **Certificates** tab and click **New Certificate**. Fill in each tab as shown.
 
 **Source tab**
 
 | Field | Value |
 |---|---|
-| Signing | Use this Certificate for signing: **DITISS Sub CA** |
+| Signing | Use this Certificate for signing: DITISS Sub CA |
 | Signature algorithm | SHA 256 |
-| Template | `[default] TLS_client` → click **Apply extensions** |
+| Template | [default] TLS_client |
+
+Click **Apply extensions**.
 
 **Subject tab**
 
 | Field | Value |
 |---|---|
-| Country | `IN` |
-| Organisation | `CDAC` |
-| Common Name | `Alice` |
-| Email address | `alice@cdac.in` |
-| Private key | `alice` |
+| Country | IN |
+| Organisation | CDAC |
+| Common Name | shubham |
+| Email address | shubham@cdac.in |
+| Private key | shubham |
 
 **Extensions tab**
 
 | Field | Value |
 |---|---|
 | Type | End Entity |
-| Time range | 1 year → click **Apply** |
-| Subject alternative name | `email:alice@cdac.in` |
+| Time range | 1 year |
+| Subject alternative name | email:shubham@cdac.in |
+
+Click **Apply** for the time range.
 
 **Key usage tab**
 
@@ -248,151 +201,107 @@ Go to **Certificates** tab → click **New Certificate**, then fill each tab:
 
 Click **OK**.
 
-**Why these settings?**
-
-| Setting | Reason |
-|---|---|
-| Digital Signature | Allows the key to create signatures. Adobe checks this. |
-| Non Repudiation | The signer cannot later deny signing. |
-| End Entity | Alice is not a CA and cannot issue certificates. |
-| E-mail Protection | Extended usage that Adobe accepts for signing. |
-
-> **Tip:** Apply the template *before* typing the subject alternative name, because re-applying a template can overwrite it.
+> **Note:** Apply the template first, then type the subject alternative name. Applying the template again can erase it.
 
 ---
 
-## Step 5: Export Files from XCA
+## Step 5: Export the Files
 
-Only two files are needed. The Sub CA does not need its own export, because it is already inside `alice.p12`.
+### 5.1 Export the user ID
 
-**5.1 Export Alice's Digital ID**
-
-Go to **Certificates** tab → select **Alice** → click **Export**
+Go to the **Certificates** tab, select **shubham** and click **Export**. Enter:
 
 | Field | Value |
 |---|---|
 | Format | PKCS #12 with Certificate chain |
-| File name | `C:\ditiss\alice.p12` |
-| Password | Set one (required in Adobe) |
+| File name | C:\ditiss\shubham.pfx |
+| Password | Set a password and remember it |
 
 Click **OK**.
 
-A `.p12` file holds the private key, the certificate and the chain (Sub CA and Root CA), protected by a password. Adobe needs the private key to sign.
+### 5.2 Export the Root CA
 
-**5.2 Export the Root CA certificate**
-
-Go to **Certificates** tab → select **DITISS Root CA** → click **Export**
+Select **DITISS Root CA** and click **Export**. Enter:
 
 | Field | Value |
 |---|---|
-| Format | PEM (`.crt`) |
-| File name | `C:\ditiss\root.crt` |
+| Format | PEM (.crt) |
+| File name | C:\ditiss\rootca.crt |
 
 Click **OK**.
-
-This file has only the public certificate. It is used to make Adobe trust your CA.
-
-**XCA part is done.** `C:\ditiss` now has `alice.p12` and `root.crt`.
 
 ---
 
 # PART 2: Adobe Acrobat
 
-**Goal:** Trust the Root CA, add Alice's Digital ID, sign the PDF and verify it.
+## Step 1: Trust the Root CA
 
-**Files needed:** `C:\ditiss\alice.p12` and `C:\ditiss\root.crt`.
+1. Open **Adobe Acrobat**.
+2. Click **Menu > Preferences** (or press **Ctrl + K**).
+3. Click **Signatures** in the left list.
+4. Next to **Identities & Trusted Certificates**, click **More…**
+5. Click **Trusted Certificates** in the left pane.
+6. Click **Import**.
+7. Click **Browse…**, select **C:\ditiss\rootca.crt** and click **Open**.
+8. Select **DITISS Root CA** in the Contacts box.
+9. Open the **Trust** tab and tick **Use this certificate as a trusted root**.
+10. Click **OK**, then **Import**, then **OK**.
 
----
-
-## Step 1: Trust the Root CA in Adobe
-
-Do this **before** signing. Otherwise Adobe shows a yellow warning: *signer's identity is unknown*.
-
-1. Open Adobe Acrobat.
-2. Go to **Edit > Preferences > Signatures**.
-3. Under **Identities & Trusted Certificates**, click **More…**
-4. In the left pane, select **Trusted Certificates** → click **Import**.
-5. Click **Browse** → select `C:\ditiss\root.crt` → **Open**.
-6. Select **DITISS Root CA** in the list → click **Import**.
-7. Back in the list, select **DITISS Root CA** → click **Edit Trust**.
-8. Tick **Use this certificate as a trusted root** → **OK**.
-
-> Trust flows down: if the root is trusted, the Sub CA and Alice's certificate are trusted too.
+> **Note:** If there is no Trust tab, select **DITISS Root CA**, click **Edit Trust**, tick **Use this certificate as a trusted root** and click **OK**.
 
 ---
 
-## Step 2: Add Alice's Digital ID in Adobe
+## Step 2: Add the Digital ID
 
-1. Go to **Edit > Preferences > Signatures > Identities & Trusted Certificates > More…**
-2. In the left pane, select **Digital IDs** → click **Add ID** (the `+` icon).
-3. Select **My existing digital ID from: A file** → **Next**.
-4. Click **Browse** → select `C:\ditiss\alice.p12`.
-5. Enter the `.p12` password → **Next**.
-6. Click **Done**. Alice now appears under Digital IDs.
+1. In the same window, click **Digital IDs** in the left pane.
+2. Click **Add ID** (the **+** icon).
+3. Select **My existing digital ID from: A file** and click **Next**.
+4. Click **Browse…** and select **C:\ditiss\shubham.pfx**.
+5. Enter the password and click **Next**.
+6. Click **Done**.
+7. Confirm **shubham** is listed, then click **Close** and **OK**.
+
+> **Note:** If the file is not listed, change the file type filter to **All files**.
 
 ---
 
 ## Step 3: Sign the PDF
 
-1. Open the PDF.
-2. Go to **Tools > Use a Certificate** (Reader: **All tools > Use a certificate**).
-3. Click **Digitally Sign**.
-4. Click **OK** on the message, then **drag a rectangle** where the signature should appear.
-5. In **Sign with a Digital ID**, choose **Alice** → **Continue**.
-6. Check the preview → **Sign**.
-7. Save as `document_signed.pdf` and enter the `.p12` password if asked.
-
-**How it works:** Adobe takes a **hash** of the PDF, encrypts the hash with **Alice's private key**, and embeds the result with Alice's certificate.
+1. Open the PDF you want to sign.
+2. In **Find text or tools**, type **certificate** and click **Use a certificate**.
+3. Click **Digitally sign**.
+4. Click **OK** on the message.
+5. **Drag a rectangle** where the signature should appear.
+6. Under **Sign with a Digital ID**, select **shubham** and click **Continue**.
+7. Check the preview and click **Sign**.
+8. Save the file as **document_signed.pdf**.
+9. Enter the password if asked.
 
 ---
 
 ## Step 4: Verify the Signature
 
-**4.1 Check validity**
-
-1. Open `document_signed.pdf`. The top bar should say **"Signed and all signatures are valid"** with a green tick.
-2. Open the **Signature panel** → right-click the signature → **Show Signature Properties**.
-3. Click **Show Signer's Certificate** and check the path:
+1. Open **document_signed.pdf**.
+2. Check that the top bar says **Signed and all signatures are valid**.
+3. Click the signature, then click **Signature Properties** and **Show Signer's Certificate**.
+4. Confirm the certificate path:
 
 ```
 DITISS Root CA
   └─ DITISS Sub CA
-       └─ Alice
+       └─ shubham
 ```
 
-**What the result means**
-
-| Result in Adobe | Meaning |
-|---|---|
-| Green tick | Document unchanged, and the certificate chains to a trusted root. |
-| Yellow warning, identity unknown | Root CA not trusted. Repeat Part 2, Step 1. |
-| Red cross, document modified | File changed after signing, so the hash no longer matches. |
-
-**4.2 Tamper test**
-
-Edit the signed PDF (add text or a page) and reopen it. The signature becomes **invalid**.
-
-| Property | Shown by |
-|---|---|
-| Integrity | The hash changes when the document changes. |
-| Authentication | The certificate chain leads to a trusted CA. |
-| Non-repudiation | Only Alice's private key could create the signature. |
+| Result in Adobe | Meaning | Fix |
+|---|---|---|
+| Green tick, all signatures valid | Working | None |
+| Yellow warning, identity unknown | Root CA not trusted | Repeat Step 1 of Part 2 |
+| Red cross, document modified | File changed after signing | Sign again |
 
 ---
 
-## Final Checklist
+## Step 5: Tamper Test
 
-**Part 1: XCA**
-- [ ] Folder `C:\ditiss` created
-- [ ] XCA installed, database `ditiss` created
-- [ ] Root CA created (4096-bit, 10 years)
-- [ ] Sub CA created (2048-bit, 5 years, path length 0)
-- [ ] Alice certificate created (Digital Signature + Non Repudiation)
-- [ ] `alice.p12` and `root.crt` exported to `C:\ditiss`
-
-**Part 2: Adobe**
-- [ ] Root CA imported and marked as trusted
-- [ ] `alice.p12` added as a Digital ID
-- [ ] PDF signed and saved as `document_signed.pdf`
-- [ ] Signature shows green tick, chain is Root → Sub → Alice
-- [ ] Tamper test shows invalid signature
+1. Edit **document_signed.pdf** (add text or a page).
+2. Reopen it.
+3. The signature should now show as **invalid**.
