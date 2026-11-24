@@ -6,8 +6,6 @@
 
 | Item | Value |
 |---|---|
-| Tool 1 | XCA (certificate and key management) |
-| Tool 2 | Adobe Acrobat / Acrobat Reader |
 | CA chain | DITISS Root CA → DITISS Sub CA |
 | Signer | Alice (`alice@cdac.in`) |
 | Files produced | `alice.p12`, `root.crt`, `document_signed.pdf` |
@@ -21,39 +19,26 @@ alice.p12 ──imported into──► Adobe ──signs──► document_signe
 
 **Why a user certificate?** A server certificate is meant for TLS. Adobe needs a certificate whose key usage allows **signing** (Digital Signature, Non Repudiation).
 
----
-
 ## Which OS for Which Tool
 
-| Stage | Tool | OS | Notes |
-|---|---|---|---|
-| **Stage 1: Build the PKI** | XCA | **Linux** (Ubuntu/Debian) | XCA also runs on Windows/macOS. Steps inside XCA are identical. |
-| **Copy files** | WinSCP or shared folder | Linux → Windows | Not needed if everything is on one machine |
-| **Stage 2: Sign the PDF** | Adobe Acrobat / Reader | **Windows** | Adobe has no official Linux version |
-
-**One machine only?**
-- **Windows only:** install XCA for Windows (installer from the XCA website or GitHub releases), skip the `apt` command, and skip copying files.
-- **Linux only:** Stage 1 works, but Adobe does not. Use a Windows VM for Stage 2.
-
----
-
-## Quick Workflow
+| Part | Tool | OS |
+|---|---|---|
+| **Part 1: Build the PKI** | XCA | **Linux** |
+| **Part 2: Sign and verify the PDF** | Adobe Acrobat / Reader | **Windows** |
 
 ```
-STAGE 1 (Linux, XCA):
+LINUX (XCA):
   1. Database ➜ 2. Root CA ➜ 3. Sub CA ➜ 4. Alice cert ➜ 5. Export
 
-        copy alice.p12 + root.crt to Windows
-
-STAGE 2 (Windows, Adobe):
+WINDOWS (Adobe):
   1. Trust root ➜ 2. Add Digital ID ➜ 3. Sign PDF ➜ 4. Verify
 ```
 
 ---
 
-# STAGE 1: Build the PKI
+# PART 1: LINUX (XCA)
 
-**Tool:** XCA  |  **OS:** Linux
+**Goal:** Create the Root CA, Sub CA and Alice's certificate, then export `alice.p12` and `root.crt`.
 
 ---
 
@@ -300,15 +285,15 @@ Go to **Certificates** tab → select **DITISS Root CA** → **Export**
 
 This file has only the public certificate. It is used to make Adobe trust your CA.
 
-**5.3 Copy files to the Windows machine**
-
-Copy `alice.p12` and `root.crt` to the machine with Adobe (WinSCP or shared folder). Skip this if XCA and Adobe are on the same machine.
+**Linux part is done.** You now have `alice.p12` and `root.crt`.
 
 ---
 
-# STAGE 2: Sign and Verify the PDF
+# PART 2: WINDOWS (Adobe Acrobat)
 
-**Tool:** Adobe Acrobat / Acrobat Reader  |  **OS:** Windows
+**Goal:** Trust the Root CA, add Alice's Digital ID, sign the PDF and verify it.
+
+**Files needed:** `alice.p12` and `root.crt`.
 
 ---
 
@@ -373,7 +358,7 @@ DITISS Root CA
 | Result in Adobe | Meaning |
 |---|---|
 | Green tick | Document unchanged, and the certificate chains to a trusted root. |
-| Yellow warning, identity unknown | Root CA not trusted. Repeat Stage 2, Step 1. |
+| Yellow warning, identity unknown | Root CA not trusted. Repeat Windows Step 1. |
 | Red cross, document modified | File changed after signing, so the hash no longer matches. |
 
 **4.2 Tamper test**
@@ -390,14 +375,14 @@ Edit the signed PDF (add text or a page) and reopen it. The signature becomes **
 
 ## Final Checklist
 
-**Stage 1 (Linux, XCA)**
+**Linux (XCA)**
 - [ ] Database `ditiss` created
 - [ ] Root CA created (4096-bit, 10 years)
 - [ ] Sub CA created (2048-bit, 5 years, path length 0)
 - [ ] Alice certificate created (Digital Signature + Non Repudiation)
-- [ ] `alice.p12` and `root.crt` exported and copied to Windows
+- [ ] `alice.p12` and `root.crt` exported
 
-**Stage 2 (Windows, Adobe)**
+**Windows (Adobe)**
 - [ ] Root CA imported and marked as trusted
 - [ ] `alice.p12` added as a Digital ID
 - [ ] PDF signed and saved as `document_signed.pdf`
