@@ -264,33 +264,3 @@ Windows does not use the Ubuntu DNS by default, so map the name manually.
 Open Chrome or Edge and go to **https://www.boomshakalaka.in**.
 
 Expected: 🔒 padlock and the page "Welcome to boomshakalaka.in". The certificate path should show `rootCA11 → subCA11 → www.boomshakalaka.in`.
-
----
-
-## Quick troubleshooting
-
-| Problem | Fix |
-|---|---|
-| `ERR_CERT_AUTHORITY_INVALID` | Root CA not in the Trusted Root store. Re-import and restart the browser. |
-| `ERR_CERT_COMMON_NAME_INVALID` | Missing or wrong `subjectAltName`. Re-issue the certificate. |
-| Site not reachable | Check the `hosts` entry, Apache running, and `sudo ufw allow 443/tcp`. |
-| Apache won't start | Run `apache2ctl configtest`; usually a wrong path or key/cert mismatch. |
-
----
-
-## Key viva points
-
-- **CSR vs certificate:** a CSR is a request (public key + identity); a certificate is a CSR signed by a CA.
-- **Why the full chain file?** The server must send the intermediate so clients can build the path to a trusted root.
-- **`pathlen:0`:** the Sub CA cannot create further sub CAs.
-- **Why SAN?** Browsers no longer rely on the Common Name alone.
-- **Self-signed vs CA-signed:** a self-signed certificate is trusted only if manually installed, which is why we import the Root CA.
-
----
-
-### What was removed
-
-- Optional/duplicate items: Windows DNS alternative, optional Sub CA import, command cheat sheet, key/cert modulus check.
-- `AAAA` record, `forwarders` block (it pointed to the server itself, so it was unnecessary), and the unused `SSLCACertificateFile` line.
-- Extra key usages (`nonRepudiation`, `keyAgreement`, `clientAuth`, `emailProtection`) that are not needed for a web server.
-- Repeated notes, filename-mismatch remarks, and upgrade/cleanup commands.
