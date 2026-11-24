@@ -1,4 +1,6 @@
-# Digital Signature of a PDF using XCA and Adobe Acrobat
+# Digital Signature of a PDF on Windows (XCA + Adobe Acrobat)
+
+**Everything is done on one Windows machine, using only the GUI. No commands needed.**
 
 ## Overview
 
@@ -6,6 +8,9 @@
 
 | Item | Value |
 |---|---|
+| OS | Windows |
+| Tool 1 | XCA (certificate and key management) |
+| Tool 2 | Adobe Acrobat / Acrobat Reader |
 | CA chain | DITISS Root CA → DITISS Sub CA |
 | Signer | Alice (`alice@cdac.in`) |
 | Files produced | `alice.p12`, `root.crt`, `document_signed.pdf` |
@@ -19,24 +24,21 @@ alice.p12 ──imported into──► Adobe ──signs──► document_signe
 
 **Why a user certificate?** A server certificate is meant for TLS. Adobe needs a certificate whose key usage allows **signing** (Digital Signature, Non Repudiation).
 
-## Which OS for Which Tool
-
-| Part | Tool | OS |
-|---|---|---|
-| **Part 1: Build the PKI** | XCA | **Linux** |
-| **Part 2: Sign and verify the PDF** | Adobe Acrobat / Reader | **Windows** |
+## Workflow
 
 ```
-LINUX (XCA):
-  1. Database ➜ 2. Root CA ➜ 3. Sub CA ➜ 4. Alice cert ➜ 5. Export
+PART 1 (XCA):
+  1. Install + Database ➜ 2. Root CA ➜ 3. Sub CA ➜ 4. Alice cert ➜ 5. Export
 
-WINDOWS (Adobe):
+PART 2 (Adobe):
   1. Trust root ➜ 2. Add Digital ID ➜ 3. Sign PDF ➜ 4. Verify
 ```
 
+**Before you start, create a folder** `C:\ditiss` using File Explorer. Everything (database, exported files) will be saved here, so it is easy to find.
+
 ---
 
-# PART 1: LINUX (XCA)
+# PART 1: XCA
 
 **Goal:** Create the Root CA, Sub CA and Alice's certificate, then export `alice.p12` and `root.crt`.
 
@@ -44,20 +46,19 @@ WINDOWS (Adobe):
 
 ## Step 1: Install XCA and Create the Database
 
-**1.1 Install and start XCA**
+**1.1 Install XCA**
 
-```bash
-sudo apt install -y xca
-mkdir -p ~/testxca
-xca            # or start it from the application menu
-```
+1. Open the XCA releases page on GitHub (`github.com/chris2511/xca/releases`).
+2. Download the Windows installer (`.msi` or `.exe`).
+3. Double-click it, click **Next** through the wizard, then **Finish**.
+4. Open **XCA** from the Start menu.
 
 **1.2 Create the database**
 
-1. Go to **File > New Database**.
-2. Choose the folder `~/testxca`.
-3. Name it `ditiss`.
-4. Leave the password empty.
+1. Click **File > New Database**.
+2. Go to the folder `C:\ditiss`.
+3. Name it `ditiss` and click **Save**.
+4. When asked for a password, leave it empty and click **OK**.
 
 **XCA tabs you will use**
 
@@ -75,7 +76,7 @@ xca            # or start it from the application menu
 
 **2.1 Create the Root key**
 
-Go to **Private Keys** tab → **New Key**
+Go to **Private Keys** tab → click **New Key**
 
 | Field | Value |
 |---|---|
@@ -87,7 +88,7 @@ Click **Create**.
 
 **2.2 Create the self-signed Root certificate**
 
-Go to **Certificates** tab → **New Certificate**, then fill each tab:
+Go to **Certificates** tab → click **New Certificate**, then fill each tab:
 
 **Source tab**
 
@@ -135,7 +136,7 @@ Click **OK**.
 
 **3.1 Create the Sub CA key**
 
-Go to **Private Keys** tab → **New Key**
+Go to **Private Keys** tab → click **New Key**
 
 | Field | Value |
 |---|---|
@@ -147,7 +148,7 @@ Click **Create**.
 
 **3.2 Create the Sub CA certificate signed by the Root CA**
 
-Go to **Certificates** tab → **New Certificate**, then fill each tab:
+Go to **Certificates** tab → click **New Certificate**, then fill each tab:
 
 **Source tab**
 
@@ -197,7 +198,7 @@ Click **OK**.
 
 **4.1 Create a key for Alice**
 
-Go to **Private Keys** tab → **New Key**
+Go to **Private Keys** tab → click **New Key**
 
 | Field | Value |
 |---|---|
@@ -209,7 +210,7 @@ Click **Create**. This key creates the signature, so it must stay private.
 
 **4.2 Create the user certificate signed by the Sub CA**
 
-Go to **Certificates** tab → **New Certificate**, then fill each tab:
+Go to **Certificates** tab → click **New Certificate**, then fill each tab:
 
 **Source tab**
 
@@ -262,38 +263,44 @@ Click **OK**.
 
 ## Step 5: Export Files from XCA
 
+Only two files are needed. The Sub CA does not need its own export, because it is already inside `alice.p12`.
+
 **5.1 Export Alice's Digital ID**
 
-Go to **Certificates** tab → select **Alice** → **Export**
+Go to **Certificates** tab → select **Alice** → click **Export**
 
 | Field | Value |
 |---|---|
 | Format | PKCS #12 with Certificate chain |
-| File name | `alice.p12` |
+| File name | `C:\ditiss\alice.p12` |
 | Password | Set one (required in Adobe) |
 
-A `.p12` file holds the private key, the certificate and the chain, protected by a password. Adobe needs the private key to sign.
+Click **OK**.
+
+A `.p12` file holds the private key, the certificate and the chain (Sub CA and Root CA), protected by a password. Adobe needs the private key to sign.
 
 **5.2 Export the Root CA certificate**
 
-Go to **Certificates** tab → select **DITISS Root CA** → **Export**
+Go to **Certificates** tab → select **DITISS Root CA** → click **Export**
 
 | Field | Value |
 |---|---|
 | Format | PEM (`.crt`) |
-| File name | `root.crt` |
+| File name | `C:\ditiss\root.crt` |
+
+Click **OK**.
 
 This file has only the public certificate. It is used to make Adobe trust your CA.
 
-**Linux part is done.** You now have `alice.p12` and `root.crt`.
+**XCA part is done.** `C:\ditiss` now has `alice.p12` and `root.crt`.
 
 ---
 
-# PART 2: WINDOWS (Adobe Acrobat)
+# PART 2: Adobe Acrobat
 
 **Goal:** Trust the Root CA, add Alice's Digital ID, sign the PDF and verify it.
 
-**Files needed:** `alice.p12` and `root.crt`.
+**Files needed:** `C:\ditiss\alice.p12` and `C:\ditiss\root.crt`.
 
 ---
 
@@ -304,10 +311,10 @@ Do this **before** signing. Otherwise Adobe shows a yellow warning: *signer's id
 1. Open Adobe Acrobat.
 2. Go to **Edit > Preferences > Signatures**.
 3. Under **Identities & Trusted Certificates**, click **More…**
-4. In the left pane, select **Trusted Certificates** → **Import**.
-5. Click **Browse** → select `root.crt` → **Open**.
-6. Select **DITISS Root CA** in the list → **Import**.
-7. Back in the list, select **DITISS Root CA** → **Edit Trust**.
+4. In the left pane, select **Trusted Certificates** → click **Import**.
+5. Click **Browse** → select `C:\ditiss\root.crt` → **Open**.
+6. Select **DITISS Root CA** in the list → click **Import**.
+7. Back in the list, select **DITISS Root CA** → click **Edit Trust**.
 8. Tick **Use this certificate as a trusted root** → **OK**.
 
 > Trust flows down: if the root is trusted, the Sub CA and Alice's certificate are trusted too.
@@ -319,7 +326,7 @@ Do this **before** signing. Otherwise Adobe shows a yellow warning: *signer's id
 1. Go to **Edit > Preferences > Signatures > Identities & Trusted Certificates > More…**
 2. In the left pane, select **Digital IDs** → click **Add ID** (the `+` icon).
 3. Select **My existing digital ID from: A file** → **Next**.
-4. Click **Browse** → select `alice.p12`.
+4. Click **Browse** → select `C:\ditiss\alice.p12`.
 5. Enter the `.p12` password → **Next**.
 6. Click **Done**. Alice now appears under Digital IDs.
 
@@ -358,7 +365,7 @@ DITISS Root CA
 | Result in Adobe | Meaning |
 |---|---|
 | Green tick | Document unchanged, and the certificate chains to a trusted root. |
-| Yellow warning, identity unknown | Root CA not trusted. Repeat Windows Step 1. |
+| Yellow warning, identity unknown | Root CA not trusted. Repeat Part 2, Step 1. |
 | Red cross, document modified | File changed after signing, so the hash no longer matches. |
 
 **4.2 Tamper test**
@@ -375,14 +382,15 @@ Edit the signed PDF (add text or a page) and reopen it. The signature becomes **
 
 ## Final Checklist
 
-**Linux (XCA)**
-- [ ] Database `ditiss` created
+**Part 1: XCA**
+- [ ] Folder `C:\ditiss` created
+- [ ] XCA installed, database `ditiss` created
 - [ ] Root CA created (4096-bit, 10 years)
 - [ ] Sub CA created (2048-bit, 5 years, path length 0)
 - [ ] Alice certificate created (Digital Signature + Non Repudiation)
-- [ ] `alice.p12` and `root.crt` exported
+- [ ] `alice.p12` and `root.crt` exported to `C:\ditiss`
 
-**Windows (Adobe)**
+**Part 2: Adobe**
 - [ ] Root CA imported and marked as trusted
 - [ ] `alice.p12` added as a Digital ID
 - [ ] PDF signed and saved as `document_signed.pdf`
